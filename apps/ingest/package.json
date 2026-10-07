@@ -1,0 +1,29 @@
+{
+  "name": "@octopus/ingest",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsup src/main.ts src/simulator.ts --format esm --target node20 --clean --noExternal @octopus/db --noExternal @octopus/telemetry --noExternal @octopus/ingest-core",
+    "start": "node dist/main.js",
+    "simulate": "tsx src/simulator.ts",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@octopus/db": "workspace:*",
+    "@octopus/ingest-core": "workspace:*",
+    "@octopus/telemetry": "workspace:*",
+    "fastify": "^5.6.0",
+    "@fastify/formbody": "^8.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.5.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  },
+  "files": [
+    "dist"
+  ]
+}
