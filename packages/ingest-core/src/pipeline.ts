@@ -6,6 +6,17 @@ export interface DeviceRef {
   id: string;
   tenantId: string;
   vehicleId: string | null;
+  imei: string;
+  protocol: string;
+  kind: string;
+  /** Nombre visible de la unidad. */
+  name: string;
+}
+
+export interface GeofenceTransition {
+  geofenceId: string;
+  geofenceName: string;
+  type: "enter" | "exit";
 }
 
 export type ProcessResult =
@@ -21,6 +32,8 @@ export interface PipelineOptions {
   deviceCacheTtlMs?: number;
   /** Rechaza fixes con más de este adelanto respecto al reloj del servidor. */
   maxFutureSkewMs?: number;
+  /** Se invoca tras guardar transiciones de geocerca (automatizaciones). */
+  onGeofenceTransitions?: (device: DeviceRef, transitions: GeofenceTransition[], event: TelemetryEvent) => Promise<void>;
 }
 
 /**
@@ -40,14 +53,23 @@ export function createPipeline(opts: PipelineOptions) {
   async function resolveDevice(imei: string): Promise<DeviceRef | null> {
     const hit = cache.get(imei);
     if (hit && hit.expires > Date.now()) return hit.ref;
-    const rows = await db.execute<{ id: string; tenant_id: string; vehicle_id: string | null }>(sql`
-      SELECT d.id, d.tenant_id, v.id AS vehicle_id
+    const rows = await db.execute<{
+      id: string;
+      tenant_id: string;
+      vehicle_id: string | null;
+      protocol: string;
+      kind: string;
+      name: string;
+    }>(sql`
+      SELECT d.id, d.tenant_id, v.id AS vehicle_id, d.protocol, d.kind, COALESCE(v.name, d.name) AS name
       FROM devices d LEFT JOIN vehicles v ON v.device_id = d.id
       WHERE d.imei = ${imei}
       LIMIT 1
     `);
     const row = rows[0];
-    const ref = row ? { id: row.id, tenantId: row.tenant_id, vehicleId: row.vehicle_id } : null;
+    const ref = row
+      ? { id: row.id, tenantId: row.tenant_id, vehicleId: row.vehicle_id, imei, protocol: row.protocol, kind: row.kind, name: row.name }
+      : null;
     // Los IMEI desconocidos se cachean menos tiempo para que el alta sea rápida.
     cache.set(imei, { ref, expires: Date.now() + (ref ? ttl : Math.min(ttl, 10_000)) });
     return ref;
@@ -151,6 +173,15 @@ export function createPipeline(opts: PipelineOptions) {
     });
 
     if (!inserted) return { status: "duplicate", device };
+
+    if (geofenceMessages.length && opts.onGeofenceTransitions) {
+      const transitions = geofenceMessages.flatMap((m) =>
+        m.type === "geofence" ? [{ geofenceId: m.geofenceId, geofenceName: m.geofenceName, type: m.event }] : [],
+      );
+      await opts.onGeofenceTransitions(device, transitions, event).catch((err) =>
+        console.error("[pipeline] fallo en automatizaciones de geocerca:", err),
+      );
+    }
 
     const messages: LiveMessage[] = [
       {

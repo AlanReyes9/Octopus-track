@@ -1,13 +1,13 @@
 "use client";
 
-import { CheckCircle2, Cpu, Link2, Loader2, Pencil, Send, Smartphone, Trash2 } from "lucide-react";
+import { CheckCircle2, Cpu, Link2, Loader2, Pencil, Plus, Search, Send, Smartphone, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { commandsFor, GATEWAY_PROTOCOLS, getProtocol, NATIVE_PROTOCOLS } from "@octopus/telemetry";
 import { VehicleIcon } from "@/components/brand/vehicle-icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input, NativeSelect } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -94,6 +94,20 @@ export function DevicesManager({ initial }: { initial: DeviceRow[] }) {
   const [pairing, setPairing] = useState<{ url: string; name: string } | null>(null);
   const [commandsTarget, setCommandsTarget] = useState<DeviceRow | null>(null);
   const [editing, setEditing] = useState<DeviceRow | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return initial;
+    return initial.filter((d) => [d.vehicleName, d.name, d.plate, d.imei].some((v) => v?.toLowerCase().includes(q)));
+  }, [initial, query]);
+
+  function openCreate() {
+    switchKind("gps");
+    setColor("#7c3aed");
+    setCreateOpen(true);
+  }
 
   function switchKind(k: "gps" | "phone") {
     setKind(k);
@@ -133,6 +147,7 @@ export function DevicesManager({ initial }: { initial: DeviceRow[] }) {
       });
       form.reset();
       setDetection(null);
+      setCreateOpen(false);
       if (res.pairingUrl) setPairing({ url: res.pairingUrl, name: data.name! });
       router.refresh();
     } catch (err) {
@@ -164,7 +179,17 @@ export function DevicesManager({ initial }: { initial: DeviceRow[] }) {
   }
 
   return (
-    <div className="grid gap-6 p-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+    <div className="space-y-4 p-6">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative min-w-60 flex-1 sm:max-w-sm">
+          <Search className="absolute top-2.5 left-3 size-4 text-muted-foreground" />
+          <Input placeholder="Buscar por nombre, placa o IMEI" className="bg-white pl-9" value={query} onChange={(e) => setQuery(e.target.value)} />
+        </div>
+        <span className="text-sm text-muted-foreground">{initial.length} dispositivos</span>
+        <Button className="ml-auto" onClick={openCreate}>
+          <Plus /> Registrar dispositivo
+        </Button>
+      </div>
       <Card className="min-w-0 py-2">
         <CardContent className="px-2">
           <Table>
@@ -179,14 +204,23 @@ export function DevicesManager({ initial }: { initial: DeviceRow[] }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {initial.length === 0 && (
+              {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
-                    No hay dispositivos registrados.
+                  <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
+                    {initial.length === 0 ? (
+                      <div className="space-y-3">
+                        <p>Aún no hay dispositivos registrados.</p>
+                        <Button size="sm" onClick={openCreate}>
+                          <Plus /> Registrar el primero
+                        </Button>
+                      </div>
+                    ) : (
+                      "Sin resultados."
+                    )}
                   </TableCell>
                 </TableRow>
               )}
-              {initial.map((d) => (
+              {filtered.map((d) => (
                 <TableRow key={d.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
@@ -243,12 +277,13 @@ export function DevicesManager({ initial }: { initial: DeviceRow[] }) {
         </CardContent>
       </Card>
 
-      <Card className="h-fit">
-        <CardHeader>
-          <CardTitle>Nuevo dispositivo</CardTitle>
-          <CardDescription>Registra el equipo y la unidad que lo lleva en un solo paso.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Registrar dispositivo</DialogTitle>
+            <DialogDescription>Registra el equipo y la unidad que lo lleva en un solo paso.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
           <div className="grid grid-cols-2 gap-1 rounded-xl bg-muted p-1">
             {(
               [
@@ -329,12 +364,18 @@ export function DevicesManager({ initial }: { initial: DeviceRow[] }) {
               </p>
             )}
             {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
-            <Button type="submit" disabled={pending}>
-              {pending ? "Guardando…" : kind === "gps" ? "Registrar dispositivo" : "Crear enlace de vinculación"}
-            </Button>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={pending}>
+                {pending ? "Guardando…" : kind === "gps" ? "Registrar dispositivo" : "Crear enlace de vinculación"}
+              </Button>
+            </DialogFooter>
           </form>
-        </CardContent>
-      </Card>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <PairingDialog url={pairing?.url ?? null} name={pairing?.name ?? ""} onClose={() => setPairing(null)} />
       {commandsTarget && (

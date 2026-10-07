@@ -94,6 +94,24 @@ Los decodificadores son código propio escrito a partir de las especificaciones 
 | Apps con protocolo OsmAnd | `https://<web>/api/ingest/osmand?token=INGEST_TOKEN&id=IMEI&lat=..&lon=..` |
 | Teléfono Android/iOS | Enlace `https://<web>/rastreo#t=…` generado en *Dispositivos → Teléfono* |
 
+### Acciones de geocerca
+
+En *Geocercas → ⚡ Acciones* cada zona puede tener reglas: **al entrar**, **al salir** o **ambos**, para cualquier unidad o una concreta, con acción **notificación push** o **comando** a la unidad que provoca el evento (`geofence_rules`, motor en `packages/ingest-core/src/automation.ts`). El bloqueo de motor nunca se ejecuta automáticamente.
+
+### Notificaciones push
+
+Web Push estándar (VAPID, RFC 8291/8292) implementado sin dependencias en `packages/ingest-core/src/webpush.ts`. Cada usuario las activa en *Mi cuenta* (o desde el aviso del mapa); llegan a administradores y a los clientes que ven esa unidad. En iPhone requieren instalar la web en la pantalla de inicio (iOS 16.4+). Genera las claves con:
+
+```bash
+pnpm --filter @octopus/ingest-core exec tsx -e 'import {generateVapidKeys} from "./src/webpush.ts"; console.log(generateVapidKeys())'
+```
+
+y define `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` y `VAPID_SUBJECT` (también en `apps/ingest`).
+
+### Teléfonos en segundo plano
+
+Los navegadores pausan la geolocalización con la pantalla bloqueada. Tras aceptar el consentimiento, la página del teléfono muestra una URL personal `https://<web>/api/ingest/osmand/<token>` para configurar cualquier app de rastreo compatible con el protocolo OsmAnd (p. ej. Traccar Client, gratuita y de código abierto), que sí envía en segundo plano con el aviso del sistema. La URL solo acepta datos mientras el consentimiento esté vigente.
+
 ### Comandos predefinidos y personalizados
 
 En el diálogo de comandos: pestaña **Predefinidos** (comandos integrados del protocolo + los guardados por la empresa en `command_templates`) y pestaña **Personalizado** (texto libre con la sintaxis del fabricante, con opción de guardarlo como predefinido, para un protocolo o para todos). El bloqueo de motor exige el vehículo detenido.

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Loader2, MapPin, MessageSquare, ShieldCheck, Sun, XCircle } from "lucide-react";
+import { AlertTriangle, Check, Copy, Loader2, MapPin, MessageSquare, MoonStar, ShieldCheck, Sun, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { OctopusLogo, OctopusMark } from "@/components/brand/octopus-logo";
@@ -162,7 +162,7 @@ export function PhoneTracker() {
         )}
 
         {phase === "tracking" && info && token && (
-          <Tracking info={info} call={call} onStop={stop} onRevoked={() => setPhase("consent")} />
+          <Tracking info={info} token={token} call={call} onStop={stop} onRevoked={() => setPhase("consent")} />
         )}
       </div>
     </main>
@@ -171,6 +171,7 @@ export function PhoneTracker() {
 
 function Tracking(props: {
   info: SessionInfo;
+  token: string;
   call: (path: string, init?: RequestInit) => Promise<{ ok: boolean; status: number; data: any }>;
   onStop: () => void;
   onRevoked: () => void;
@@ -329,6 +330,8 @@ function Tracking(props: {
         )}
       </div>
 
+      <BackgroundSetup token={props.token} />
+
       <Button variant="destructive" className="h-12 w-full text-base" onClick={props.onStop}>
         Dejar de compartir
       </Button>
@@ -355,5 +358,82 @@ function Li({ children }: { children: React.ReactNode }) {
       <ShieldCheck className="mt-0.5 size-4 shrink-0 text-violet-600" />
       <span>{children}</span>
     </li>
+  );
+}
+
+/**
+ * Seguimiento en segundo plano: los navegadores pausan la ubicación al
+ * bloquear el teléfono, así que se configura una app de rastreo compatible
+ * con el protocolo abierto OsmAnd usando la URL personal de este enlace.
+ */
+function BackgroundSetup({ token }: { token: string }) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const url = typeof window !== "undefined" ? `${window.location.origin}/api/ingest/osmand/${token}` : "";
+  const isIos = typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+  return (
+    <div className="rounded-2xl border bg-white p-4 text-sm">
+      <button className="flex w-full items-center gap-3 text-left" onClick={() => setOpen((o) => !o)}>
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-700">
+          <MoonStar className="size-4" />
+        </span>
+        <span className="flex-1">
+          <span className="block font-semibold">Seguir en segundo plano</span>
+          <span className="block text-xs text-muted-foreground">Para compartir aunque bloquees el teléfono</span>
+        </span>
+        <span className="text-xs font-medium text-violet-700">{open ? "Ocultar" : "Configurar"}</span>
+      </button>
+      {open && (
+        <div className="mt-4 space-y-3 text-muted-foreground">
+          <p>
+            Los navegadores pausan la ubicación con la pantalla bloqueada. Para enviarla en segundo plano instala una app
+            de rastreo gratuita compatible con el protocolo <strong className="text-foreground">OsmAnd</strong>, por ejemplo{" "}
+            <strong className="text-foreground">Traccar Client</strong> (código abierto, sin relación con Octopus Track).
+          </p>
+          <ol className="list-decimal space-y-1.5 pl-5">
+            <li>
+              Instálala desde{" "}
+              {isIos ? (
+                <>la App Store (busca «Traccar Client»)</>
+              ) : (
+                <a
+                  className="text-primary underline"
+                  href="https://play.google.com/store/apps/details?id=org.traccar.client"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Google Play
+                </a>
+              )}
+              .
+            </li>
+            <li>En «URL del servidor» pega tu dirección personal:</li>
+          </ol>
+          <div className="flex items-center gap-2">
+            <code className="min-w-0 flex-1 truncate rounded-lg bg-muted px-2 py-2 text-xs text-foreground">{url}</code>
+            <Button
+              size="icon"
+              variant="outline"
+              onClick={async () => {
+                await navigator.clipboard.writeText(url);
+                setCopied(true);
+              }}
+              title="Copiar"
+            >
+              {copied ? <Check /> : <Copy />}
+            </Button>
+          </div>
+          <ol className="list-decimal space-y-1.5 pl-5" start={3}>
+            <li>Deja cualquier identificador: el servidor reconoce tu teléfono por la URL.</li>
+            <li>Activa el servicio y concede el permiso de ubicación «Siempre» / «Permitir todo el tiempo».</li>
+          </ol>
+          <p className="rounded-lg bg-violet-50 p-3 text-xs text-violet-900">
+            El sistema mostrará siempre un aviso mientras se comparte. Para dejar de compartir, detén el servicio en la app
+            o pulsa «Dejar de compartir» aquí: la URL deja de aceptar ubicaciones al instante.
+          </p>
+        </div>
+      )}
+    </div>
   );
 }

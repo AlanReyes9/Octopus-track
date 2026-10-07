@@ -20,6 +20,7 @@ import {
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CommandsDialog } from "@/components/app/commands-dialog";
+import { PushBanner } from "@/components/app/push-card";
 import { VehicleIcon } from "@/components/brand/vehicle-icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,9 @@ export function LiveDashboard({ canManage }: { canManage: boolean }) {
 
   useEffect(() => {
     const t = setInterval(() => setTick((n) => n + 1), 15_000);
+    // Apertura desde una notificación: /dashboard?device=<id>
+    const fromUrl = new URLSearchParams(window.location.search).get("device");
+    if (fromUrl) setSelected(fromUrl);
     return () => clearInterval(t);
   }, []);
 
@@ -142,6 +146,7 @@ export function LiveDashboard({ canManage }: { canManage: boolean }) {
     <div className="flex h-full flex-col lg:flex-row">
       {/* Lista de unidades */}
       <section className="flex max-h-[45svh] flex-col border-b bg-white lg:max-h-none lg:w-[340px] lg:border-r lg:border-b-0">
+        <PushBanner />
         <div className="space-y-4 border-b p-4">
           <div className="flex items-center justify-between">
             <h1 className="text-lg font-bold tracking-tight">Mapa en vivo</h1>

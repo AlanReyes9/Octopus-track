@@ -34,5 +34,6 @@ export async function ingest(decode: () => TelemetryEvent): Promise<Response> {
   if (result.status === "unknown_device") {
     await notePendingDevice(getDb(), event.imei, event.source, null).catch(() => {});
   }
-  return json(result, STATUS[result.status]);
+  // Respuesta mínima: los equipos y apps externas no necesitan ids internos.
+  return json({ status: result.status }, STATUS[result.status]);
 }

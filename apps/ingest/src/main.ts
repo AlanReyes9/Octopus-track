@@ -1,6 +1,13 @@
 import { Redis } from "ioredis";
 import { createDb } from "@octopus/db";
-import { createCommandStore, createPipeline, publisherFromEnv } from "@octopus/ingest-core";
+import {
+  createAutomation,
+  createCommandStore,
+  createNotifier,
+  createPipeline,
+  publisherFromEnv,
+  vapidFromEnv,
+} from "@octopus/ingest-core";
 import { COMMANDS_CHANNEL } from "@octopus/telemetry";
 import { buildHttpServer } from "./http";
 import { buildTcpServer } from "./tcp";
@@ -10,8 +17,21 @@ const tcpPort = Number(process.env.INGEST_TCP_PORT ?? 5023);
 
 const { db, sql } = createDb({ max: Number(process.env.DB_POOL_MAX ?? 10) });
 const publisher = publisherFromEnv();
-const pipeline = createPipeline({ db, publisher });
-const commands = createCommandStore(db, publisher);
+// Los comandos que disparan las geocercas se entregan directamente a los
+// equipos conectados a este proceso (enlace tardío: los servidores TCP se crean después).
+let deliverLocal: (id: string) => Promise<void> = async () => {};
+const commands = createCommandStore(db, publisher, {
+  onTcpCommand: async (id) => {
+    await deliverLocal(id);
+    await publisher.notifyCommand(id).catch(() => {});
+  },
+});
+const notifier = createNotifier(db, vapidFromEnv());
+const pipeline = createPipeline({
+  db,
+  publisher,
+  onGeofenceTransitions: createAutomation({ db, commands, notifier }),
+});
 
 const http = buildHttpServer(pipeline, db, { ingestToken: process.env.INGEST_TOKEN });
 // Puerto principal con detección automática del protocolo + puertos dedicados
@@ -25,6 +45,10 @@ const dedicated = (process.env.INGEST_PROTOCOL_PORTS ?? "")
     const [protocol, port] = entry.split(":");
     return { protocol: protocol!, port: Number(port), srv: buildTcpServer(pipeline, commands, db, { protocol }) };
   });
+
+deliverLocal = async (id) => {
+  for (const t of [tcp, ...dedicated.map((d) => d.srv)]) await t.onCommandQueued(id);
+};
 
 // Comandos encolados desde la web: entrega inmediata si el equipo está conectado.
 let sub: Redis | null = null;

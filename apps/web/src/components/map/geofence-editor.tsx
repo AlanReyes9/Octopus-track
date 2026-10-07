@@ -2,7 +2,7 @@
 
 import type { Feature } from "geojson";
 import type { GeoJSONSource, MapMouseEvent } from "maplibre-gl";
-import { Trash2, Undo2 } from "lucide-react";
+import { Trash2, Undo2, Zap } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/fetcher";
 import { timeAgo } from "@/lib/utils";
+import { GeofenceRulesDialog } from "./geofence-rules-dialog";
 import { syncGeofenceLayer, useMap, type GeofenceFeature } from "./use-map";
 
 interface Geofence extends GeofenceFeature {
@@ -31,6 +32,7 @@ export function GeofenceEditor({ canManage }: { canManage: boolean }) {
   const [name, setName] = useState("");
   const [color, setColor] = useState("#f97316");
   const [error, setError] = useState<string | null>(null);
+  const [rulesFor, setRulesFor] = useState<{ id: string; name: string } | null>(null);
   const drawingRef = useRef(drawing);
   drawingRef.current = drawing;
 
@@ -196,9 +198,14 @@ export function GeofenceEditor({ canManage }: { canManage: boolean }) {
                 <span className="ml-auto text-xs text-muted-foreground">{g.areaKm2.toFixed(2)} km²</span>
               </button>
               {canManage && (
-                <Button size="icon" variant="ghost" className="size-7" onClick={() => remove(g.id)} title="Eliminar">
-                  <Trash2 className="text-destructive" />
-                </Button>
+                <>
+                  <Button size="icon" variant="ghost" className="size-7" onClick={() => setRulesFor(g)} title="Acciones">
+                    <Zap className="text-violet-600" />
+                  </Button>
+                  <Button size="icon" variant="ghost" className="size-7" onClick={() => remove(g.id)} title="Eliminar">
+                    <Trash2 className="text-destructive" />
+                  </Button>
+                </>
               )}
             </li>
           ))}
@@ -220,6 +227,7 @@ export function GeofenceEditor({ canManage }: { canManage: boolean }) {
         </div>
       </section>
       <div ref={containerRef} className="min-h-[55svh] flex-1" />
+      <GeofenceRulesDialog geofence={rulesFor} onClose={() => setRulesFor(null)} />
     </div>
   );
 }

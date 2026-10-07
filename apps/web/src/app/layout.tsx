@@ -9,6 +9,8 @@ export const metadata: Metadata = {
   description:
     "Plataforma de monitoreo de flotas y teléfonos en tiempo real: mapa en vivo, historial de rutas, geocercas y comandos remotos.",
   applicationName: "Octopus Track",
+  appleWebApp: { capable: true, title: "Octopus Track", statusBarStyle: "default" },
+  icons: { apple: "/apple-touch-icon.png" },
 };
 
 export const viewport: Viewport = { themeColor: "#6d28d9" };

@@ -1,18 +1,14 @@
 import "server-only";
 import { and, desc, deviceCommands, deviceLastPositions, devices, eq, getDb } from "@octopus/db";
-import { createCommandStore, publisherFromEnv, type CommandStore, type LivePublisher } from "@octopus/ingest-core";
-import { commandsFor, ENGINE_STOP_MAX_SPEED_KMH, getCommand, isTcpNative } from "@octopus/telemetry";
+import { commandsFor, ENGINE_STOP_MAX_SPEED_KMH, getCommand } from "@octopus/telemetry";
+import { services } from "@/lib/ingest";
 import { HttpError } from "@/lib/api";
 import type { Session } from "@/lib/auth";
 
-const g = globalThis as unknown as { __octopusCommands?: { store: CommandStore; publisher: LivePublisher } };
-function services() {
-  if (!g.__octopusCommands) {
-    const publisher = publisherFromEnv();
-    g.__octopusCommands = { publisher, store: createCommandStore(getDb(), publisher) };
-  }
-  return g.__octopusCommands;
-}
+const commandServices = () => {
+  const { commands, publisher } = services();
+  return { store: commands, publisher };
+};
 
 /** Protocolo efectivo para comandos (los teléfonos usan "phone"). */
 export function protocolOf(d: { kind: string; protocol: string }): string {
@@ -89,55 +85,10 @@ export async function enqueueCommand(
     }
   }
 
-  const [cmd] = await db
-    .insert(deviceCommands)
-    .values({ tenantId: session.tenantId, deviceId: device.id, createdBy: session.userId, type, params })
-    .returning();
-
-  const { store, publisher } = services();
-  if (isTcpNative(protocol)) {
-    // El servicio de ingesta TCP lo entrega si el equipo está conectado (o al reconectar).
-    await publisher.notifyCommand(cmd!.id).catch(() => {});
-  } else if (protocol !== "phone") {
-    // Gateway JSON y protocolos decodificados por un servidor externo.
-    await dispatchToGateway(store, cmd!.id, device.imei, protocol, type, params);
-  }
-  // Teléfono: lo recoge en su siguiente reporte.
-  return cmd!;
-}
-
-/**
- * Reenvía el comando a un servidor de protocolos externo configurado por el
- * operador (COMMANDS_WEBHOOK_URL). Contrato JSON propio y documentado.
- */
-async function dispatchToGateway(
-  store: CommandStore,
-  id: string,
-  imei: string,
-  protocol: string,
-  type: string,
-  params: Record<string, unknown>,
-) {
-  const url = process.env.COMMANDS_WEBHOOK_URL;
-  if (!url) {
-    await store.mark(id, "failed", "No hay un gateway de comandos configurado (COMMANDS_WEBHOOK_URL)");
-    return;
-  }
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        ...(process.env.COMMANDS_WEBHOOK_TOKEN ? { authorization: `Bearer ${process.env.COMMANDS_WEBHOOK_TOKEN}` } : {}),
-      },
-      body: JSON.stringify({ id, imei, protocol, type, params }),
-      signal: AbortSignal.timeout(8000),
-    });
-    if (res.ok) await store.mark(id, "sent", null);
-    else await store.mark(id, "failed", `El gateway respondió ${res.status}`);
-  } catch (err) {
-    await store.mark(id, "failed", `Gateway no disponible: ${(err as Error).message}`);
-  }
+  const { store } = commandServices();
+  const id = await store.enqueue({ tenantId: session.tenantId, deviceId: device.id, createdBy: session.userId, type, params });
+  await store.dispatch(id, device, type, params);
+  return { id };
 }
 
 export async function cancelCommand(tenantId: string, commandId: string) {
@@ -147,12 +98,12 @@ export async function cancelCommand(tenantId: string, commandId: string) {
     .where(and(eq(deviceCommands.id, commandId), eq(deviceCommands.tenantId, tenantId)))
     .limit(1);
   if (!row) throw new HttpError(404, "Comando no encontrado");
-  return services().store.mark(commandId, "cancelled", "Cancelado por el usuario");
+  return commandServices().store.mark(commandId, "cancelled", "Cancelado por el usuario");
 }
 
 /** Comandos pendientes para un teléfono; se marcan como entregados al leerlos. */
 export async function takePhoneCommands(deviceId: string) {
-  const { store } = services();
+  const { store } = commandServices();
   const pending = await store.pendingForDevice(deviceId);
   for (const c of pending) await store.mark(c.id, "delivered", null);
   return pending.map((c) => ({ id: c.id, type: c.type, params: c.params }));

@@ -29,6 +29,7 @@ export default function PrivacyPage() {
         <li><strong>Cuenta:</strong> nombre, correo electrónico, contraseña (almacenada solo como hash bcrypt), rol y empresa.</li>
         <li><strong>Equipos GPS:</strong> identificador (IMEI), posición geográfica, velocidad, rumbo, estado de encendido y fecha/hora.</li>
         <li><strong>Teléfonos vinculados:</strong> posición geográfica mientras la persona comparte su ubicación, nombre que indica al aceptar, fecha de aceptación o revocación y tipo de navegador.</li>
+        <li><strong>Notificaciones:</strong> si las activas, la dirección de suscripción push que genera tu navegador (no incluye datos personales) para enviarte alertas.</li>
         <li><strong>Técnicos:</strong> registros de acceso y errores necesarios para la seguridad del servicio.</li>
       </ul>
       <p>No tratamos datos personales sensibles ni usamos los datos con fines publicitarios. No vendemos datos.</p>
@@ -45,8 +46,10 @@ export default function PrivacyPage() {
         Un teléfono solo se localiza si la persona que lo porta abre el enlace de vinculación, lee qué empresa verá su
         ubicación y <strong>acepta expresamente</strong>. Puede dejar de compartir en cualquier momento con el botón
         &laquo;Dejar de compartir&raquo;, que revoca el consentimiento de inmediato. El sistema del teléfono muestra
-        siempre cuándo se está usando la ubicación. Queda prohibido usar la plataforma para localizar a personas sin su
-        conocimiento.
+        siempre cuándo se está usando la ubicación. Si además configuras una app de rastreo en segundo plano con tu
+        URL personal, esa app (de un tercero, con su propia política) envía la ubicación aunque bloquees el teléfono,
+        mostrando el aviso del sistema; al revocar el consentimiento la URL deja de aceptar datos. Queda prohibido usar
+        la plataforma para localizar a personas sin su conocimiento.
       </p>
 
       <h2>5. Conservación</h2>
@@ -64,8 +67,9 @@ export default function PrivacyPage() {
         </thead>
         <tbody>
           <tr><td>Vercel Inc.</td><td>Alojamiento de la aplicación web</td><td>Estados Unidos</td></tr>
-          <tr><td>Supabase Inc.</td><td>Base de datos</td><td>Estados Unidos</td></tr>
+          <tr><td>Neon Inc. (vía Vercel)</td><td>Base de datos</td><td>Estados Unidos</td></tr>
           <tr><td>OpenFreeMap</td><td>Teselas del mapa (recibe la dirección IP del navegador)</td><td>Unión Europea</td></tr>
+          <tr><td>Servicio push del navegador (Google, Mozilla, Apple)</td><td>Entrega de notificaciones cifradas de extremo a extremo</td><td>Varía</td></tr>
         </tbody>
       </table>
       <p>
