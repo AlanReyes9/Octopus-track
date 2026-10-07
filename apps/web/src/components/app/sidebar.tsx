@@ -24,7 +24,6 @@ const NAV: { href: string; label: string; icon: typeof Car; manage?: boolean }[]
   { href: "/dashboard", label: "Mapa en vivo", icon: LayoutDashboard },
   { href: "/history", label: "Historial", icon: History },
   { href: "/geofences", label: "Geocercas", icon: Shapes },
-  { href: "/vehicles", label: "Vehículos", icon: Car, manage: true },
   { href: "/devices", label: "Dispositivos", icon: Cpu, manage: true },
   { href: "/users", label: "Usuarios", icon: Users, manage: true },
   { href: "/protocols", label: "Protocolos", icon: Network, manage: true },

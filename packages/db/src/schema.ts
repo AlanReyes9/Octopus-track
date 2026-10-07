@@ -90,6 +90,7 @@ export const vehicles = pgTable("vehicles", {
   name: text("name").notNull(),
   plate: text("plate"),
   color: varchar("color", { length: 9 }).notNull().default("#7c3aed"),
+  icon: varchar("icon", { length: 20 }).notNull().default("car"),
   createdAt: ts("created_at").notNull().defaultNow(),
 });
 

@@ -9,9 +9,9 @@ import { devices, memberships, tenants, users, vehicles } from "./schema";
 import { sql as dsql } from "drizzle-orm";
 
 const DEMO = [
-  { imei: "860000000000001", name: "GPS Camión 01", vehicle: "Camión 01", plate: "ABC-123", color: "#7c3aed" },
-  { imei: "860000000000002", name: "GPS Furgoneta 02", vehicle: "Furgoneta 02", plate: "XYZ-987", color: "#0ea5e9" },
-  { imei: "860000000000003", name: "GPS Moto 03", vehicle: "Moto 03", plate: "MT-456", color: "#db2777" },
+  { imei: "860000000000001", name: "GPS Camión 01", vehicle: "Camión 01", plate: "ABC-123", color: "#7c3aed", icon: "truck" },
+  { imei: "860000000000002", name: "GPS Furgoneta 02", vehicle: "Furgoneta 02", plate: "XYZ-987", color: "#0ea5e9", icon: "pickup" },
+  { imei: "860000000000003", name: "GPS Moto 03", vehicle: "Moto 03", plate: "MT-456", color: "#db2777", icon: "moto" },
 ];
 
 async function main() {
@@ -42,7 +42,7 @@ async function main() {
         .returning();
       await db
         .insert(vehicles)
-        .values({ tenantId: tenant!.id, deviceId: device!.id, name: d.vehicle, plate: d.plate, color: d.color })
+        .values({ tenantId: tenant!.id, deviceId: device!.id, name: d.vehicle, plate: d.plate, color: d.color, icon: d.icon })
         .onConflictDoNothing();
     }
 

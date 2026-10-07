@@ -18,7 +18,7 @@ export default async function UsersPage() {
       />
       <UsersManager
         users={users}
-        vehicles={vehicles.map((v) => ({ id: v.id, name: v.name, plate: v.plate }))}
+        vehicles={vehicles.map((v) => ({ id: v.id, name: v.name, plate: v.plate, icon: v.icon }))}
         currentUserId={session.userId}
         isOwner={session.role === "owner"}
       />

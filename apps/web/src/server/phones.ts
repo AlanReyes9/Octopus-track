@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { and, consentLog, devices, eq, getDb, isNull, tenants } from "@octopus/db";
+import { createDeviceWithUnit } from "./fleet";
 
 /**
  * Teléfonos (Android/iOS) que comparten su ubicación desde el navegador.
@@ -12,21 +13,22 @@ function newToken() {
   return randomBytes(24).toString("base64url");
 }
 
-export async function createPhoneDevice(tenantId: string, input: { name: string; phone?: string | null }) {
+export async function createPhoneDevice(
+  tenantId: string,
+  input: { name: string; phone?: string | null; color: string; icon: string },
+) {
   const token = newToken();
-  const [device] = await getDb()
-    .insert(devices)
-    .values({
-      tenantId,
-      kind: "phone",
-      protocol: "phone",
-      imei: `PH-${randomBytes(6).toString("hex").toUpperCase()}`,
-      name: input.name,
-      phone: input.phone ?? null,
-      trackingTokenHash: hashToken(token),
-    })
-    .returning();
-  return { device: device!, token };
+  const device = await createDeviceWithUnit(tenantId, {
+    kind: "phone",
+    protocol: "phone",
+    imei: `PH-${randomBytes(6).toString("hex").toUpperCase()}`,
+    name: input.name,
+    phone: input.phone ?? null,
+    trackingTokenHash: hashToken(token),
+    color: input.color,
+    icon: input.icon,
+  });
+  return { device, token };
 }
 
 /** Genera un enlace nuevo e invalida el anterior (y el consentimiento previo). */

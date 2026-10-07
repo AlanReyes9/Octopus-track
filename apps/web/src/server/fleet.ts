@@ -22,6 +22,9 @@ export async function listDevices(tenantId: string, visible: string[] | null = n
       createdAt: devices.createdAt,
       vehicleId: vehicles.id,
       vehicleName: vehicles.name,
+      plate: vehicles.plate,
+      color: vehicles.color,
+      icon: vehicles.icon,
     })
     .from(devices)
     .leftJoin(vehicles, eq(vehicles.deviceId, devices.id))
@@ -53,12 +56,97 @@ export async function updateDevice(
   return row ?? null;
 }
 
+/** Elimina el dispositivo y la unidad vinculada a él (alta unificada 1:1). */
 export async function deleteDevice(tenantId: string, id: string) {
-  const rows = await getDb()
-    .delete(devices)
-    .where(and(eq(devices.id, id), eq(devices.tenantId, tenantId)))
-    .returning({ imei: devices.imei });
-  return rows[0] ?? null;
+  return getDb().transaction(async (tx) => {
+    const linked = await tx
+      .select({ id: vehicles.id })
+      .from(vehicles)
+      .where(and(eq(vehicles.deviceId, id), eq(vehicles.tenantId, tenantId)));
+    const rows = await tx
+      .delete(devices)
+      .where(and(eq(devices.id, id), eq(devices.tenantId, tenantId)))
+      .returning({ imei: devices.imei });
+    if (!rows[0]) return null;
+    if (linked.length) {
+      await tx.delete(vehicles).where(and(eq(vehicles.tenantId, tenantId), inArray(vehicles.id, linked.map((v) => v.id))));
+    }
+    return rows[0];
+  });
+}
+
+/** Alta unificada: dispositivo + unidad en una sola transacción. */
+export async function createDeviceWithUnit(
+  tenantId: string,
+  input: {
+    kind: "gps" | "phone";
+    imei: string;
+    protocol: string;
+    phone?: string | null;
+    trackingTokenHash?: string | null;
+    name: string;
+    plate?: string | null;
+    color: string;
+    icon: string;
+  },
+) {
+  return getDb().transaction(async (tx) => {
+    const [device] = await tx
+      .insert(devices)
+      .values({
+        tenantId,
+        kind: input.kind,
+        imei: input.imei,
+        name: input.name,
+        protocol: input.protocol,
+        phone: input.phone ?? null,
+        trackingTokenHash: input.trackingTokenHash ?? null,
+      })
+      .returning();
+    await tx.insert(vehicles).values({
+      tenantId,
+      deviceId: device!.id,
+      name: input.name,
+      plate: input.plate ?? null,
+      color: input.color,
+      icon: input.icon,
+    });
+    return device!;
+  });
+}
+
+/** Edición unificada: nombre/placa/color/icono de la unidad y datos del equipo. */
+export async function updateDeviceWithUnit(
+  tenantId: string,
+  id: string,
+  input: { name?: string; plate?: string | null; color?: string; icon?: string; protocol?: string; phone?: string | null },
+) {
+  return getDb().transaction(async (tx) => {
+    const deviceSet: Record<string, unknown> = {};
+    if (input.name !== undefined) deviceSet.name = input.name;
+    if (input.protocol !== undefined) deviceSet.protocol = input.protocol;
+    if (input.phone !== undefined) deviceSet.phone = input.phone;
+    const [device] = Object.keys(deviceSet).length
+      ? await tx.update(devices).set(deviceSet).where(and(eq(devices.id, id), eq(devices.tenantId, tenantId))).returning()
+      : await tx.select().from(devices).where(and(eq(devices.id, id), eq(devices.tenantId, tenantId)));
+    if (!device) return null;
+    const unitSet: Record<string, unknown> = {};
+    for (const k of ["name", "plate", "color", "icon"] as const) if (input[k] !== undefined) unitSet[k] = input[k];
+    const [existing] = await tx.select({ id: vehicles.id }).from(vehicles).where(eq(vehicles.deviceId, id));
+    if (existing) {
+      if (Object.keys(unitSet).length) await tx.update(vehicles).set(unitSet).where(eq(vehicles.id, existing.id));
+    } else {
+      await tx.insert(vehicles).values({
+        tenantId,
+        deviceId: id,
+        name: input.name ?? device.name,
+        plate: input.plate ?? null,
+        color: input.color ?? "#7c3aed",
+        icon: input.icon ?? (device.kind === "phone" ? "person" : "car"),
+      });
+    }
+    return device;
+  });
 }
 
 // ------------------------------------------------------------------ vehículos
@@ -73,6 +161,7 @@ export async function listVehicles(tenantId: string, visible: string[] | null = 
       deviceId: vehicles.deviceId,
       deviceImei: devices.imei,
       deviceKind: devices.kind,
+      icon: vehicles.icon,
       lastSeenAt: devices.lastSeenAt,
     })
     .from(vehicles)

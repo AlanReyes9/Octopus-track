@@ -1,6 +1,6 @@
 import { HttpError, json, parseBody, withAuth } from "@/lib/api";
-import { deviceSchema, phoneDeviceSchema } from "@/lib/schemas";
-import { createDevice, listDevices } from "@/server/fleet";
+import { gpsDeviceCreateSchema, phoneDeviceSchema } from "@/lib/schemas";
+import { createDeviceWithUnit, listDevices } from "@/server/fleet";
 import { createPhoneDevice, pairingUrl } from "@/server/phones";
 
 export const GET = withAuth(async (_req, { session }) => json(await listDevices(session.tenantId)), { manage: true });
@@ -16,8 +16,10 @@ export const POST = withAuth(
       const { trackingTokenHash: _hash, ...safe } = device;
       return json({ device: safe, pairingUrl: pairingUrl(new URL(req.url).origin, token) }, 201);
     }
-    const input = deviceSchema.parse(body);
-    return json({ device: await createDevice(session.tenantId, input) }, 201);
+    const input = gpsDeviceCreateSchema.parse(body);
+    const device = await createDeviceWithUnit(session.tenantId, { ...input, kind: "gps" });
+    const { trackingTokenHash: _hash, ...safe } = device;
+    return json({ device: safe }, 201);
   },
   { manage: true },
 );

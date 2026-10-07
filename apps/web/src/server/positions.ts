@@ -11,6 +11,7 @@ export interface LivePosition {
   vehicleName: string | null;
   plate: string | null;
   color: string;
+  icon: string;
   kind: "gps" | "phone";
   protocol: string;
   attributes: Record<string, unknown>;
@@ -26,7 +27,7 @@ export interface LivePosition {
 export async function latestPositions(tenantId: string, visible: string[] | null = null): Promise<LivePosition[]> {
   const rows = await getDb().execute<Record<string, unknown>>(sql`
     SELECT l.device_id, d.name AS device_name, d.imei, v.id AS vehicle_id, v.name AS vehicle_name, v.plate,
-           COALESCE(v.color, '#7c3aed') AS color, d.kind, d.protocol, l.attributes, l.time, l.latitude, l.longitude, l.speed_kmh, l.course, l.ignition
+           COALESCE(v.color, '#7c3aed') AS color, COALESCE(v.icon, CASE WHEN d.kind = 'phone' THEN 'person' ELSE 'car' END) AS icon, d.kind, d.protocol, l.attributes, l.time, l.latitude, l.longitude, l.speed_kmh, l.course, l.ignition
     FROM device_last_positions l
     JOIN devices d ON d.id = l.device_id
     LEFT JOIN vehicles v ON v.device_id = d.id
@@ -41,6 +42,7 @@ export async function latestPositions(tenantId: string, visible: string[] | null
     vehicleName: (r.vehicle_name as string) ?? null,
     plate: (r.plate as string) ?? null,
     color: r.color as string,
+    icon: r.icon as string,
     kind: r.kind as "gps" | "phone",
     protocol: r.protocol as string,
     attributes: (r.attributes as Record<string, unknown>) ?? {},

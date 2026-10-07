@@ -15,13 +15,12 @@ import {
   Radio,
   Search,
   Send,
-  Smartphone,
-  Truck,
   X,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CommandsDialog } from "@/components/app/commands-dialog";
+import { VehicleIcon } from "@/components/brand/vehicle-icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -92,7 +91,7 @@ export function LiveDashboard({ canManage }: { canManage: boolean }) {
         existing.marker.setLngLat([p.longitude, p.latitude]);
         setMarkerCourse(existing.el, p.course);
       } else {
-        const el = createVehicleMarkerElement(p.color);
+        const el = createVehicleMarkerElement(p.color, p.icon);
         setMarkerCourse(el, p.course);
         el.title = p.vehicleName ?? p.deviceName;
         el.addEventListener("click", () => {
@@ -169,7 +168,6 @@ export function LiveDashboard({ canManage }: { canManage: boolean }) {
           )}
           {filtered.map((p) => {
             const on = isOnline(p.time);
-            const Icon = p.kind === "phone" ? Smartphone : Truck;
             return (
               <li key={p.deviceId}>
                 <button
@@ -183,7 +181,7 @@ export function LiveDashboard({ canManage }: { canManage: boolean }) {
                   )}
                 >
                   <span className="relative flex size-10 shrink-0 items-center justify-center rounded-xl text-white" style={{ background: p.color }}>
-                    <Icon className="size-5" />
+                    <VehicleIcon icon={p.icon} className="size-5" />
                     <span className={cn("absolute -right-0.5 -bottom-0.5 size-3 rounded-full border-2 border-white", on ? "bg-emerald-500" : "bg-zinc-400")} />
                   </span>
                   <span className="min-w-0 flex-1">
@@ -239,7 +237,7 @@ export function LiveDashboard({ canManage }: { canManage: boolean }) {
             <div className="rounded-2xl border bg-white/95 p-4 shadow-xl shadow-violet-900/10 backdrop-blur">
               <div className="flex items-start gap-3">
                 <span className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl text-white" style={{ background: current.color }}>
-                  {current.kind === "phone" ? <Smartphone className="size-5" /> : <Truck className="size-5" />}
+                  <VehicleIcon icon={current.icon} className="size-5" />
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-semibold">{current.vehicleName ?? current.deviceName}</div>

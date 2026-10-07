@@ -1,17 +1,17 @@
 import { HttpError, json, parseBody, withAuth } from "@/lib/api";
 import { getPipeline } from "@/lib/ingest";
-import { deleteDevice, updateDevice } from "@/server/fleet";
-import { deviceSchema } from "@/lib/schemas";
+import { deleteDevice, updateDeviceWithUnit } from "@/server/fleet";
+import { deviceUpdateSchema } from "@/lib/schemas";
 
 type Ctx = { params: Promise<{ id: string }> };
 
 export const PATCH = withAuth<Ctx>(
   async (req, { session, params }) => {
     const { id } = await params;
-    const input = await parseBody(req, deviceSchema.omit({ imei: true, kind: true }).partial());
-    const row = await updateDevice(session.tenantId, id, input);
+    const input = await parseBody(req, deviceUpdateSchema);
+    const row = await updateDeviceWithUnit(session.tenantId, id, input);
     if (!row) throw new HttpError(404, "Dispositivo no encontrado");
-    return json(row);
+    return json({ ok: true });
   },
   { manage: true },
 );

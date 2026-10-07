@@ -13,7 +13,7 @@ export default async function DevicesPage() {
     <>
       <PageHeader
         title="Dispositivos"
-        description="Rastreadores GPS (identificados por IMEI) y teléfonos Android/iOS vinculados con consentimiento."
+        description="Cada dispositivo es una unidad en el mapa: rastreadores GPS (por IMEI) y teléfonos Android/iOS con consentimiento."
       />
       <DevicesManager initial={JSON.parse(JSON.stringify(devices))} />
     </>

@@ -3,6 +3,7 @@
 import { Check, Copy, KeyRound, Pencil, Trash2, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { VehicleIcon } from "@/components/brand/vehicle-icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,6 +27,7 @@ interface VehicleOption {
   id: string;
   name: string;
   plate: string | null;
+  icon: string;
 }
 
 const ROLE: Record<Role, { label: string; variant: "default" | "secondary" | "outline" }> = {
@@ -223,10 +225,11 @@ function UserDialog(props: {
             <div className="grid gap-2">
               <Label>Unidades visibles</Label>
               <div className="max-h-48 space-y-1 overflow-auto rounded-xl border p-2">
-                {props.vehicles.length === 0 && <p className="p-2 text-sm text-muted-foreground">No hay vehículos creados.</p>}
+                {props.vehicles.length === 0 && <p className="p-2 text-sm text-muted-foreground">No hay unidades registradas.</p>}
                 {props.vehicles.map((v) => (
                   <label key={v.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted">
                     <input type="checkbox" className="size-4 accent-violet-600" checked={selected.includes(v.id)} onChange={() => toggle(v.id)} />
+                    <VehicleIcon icon={v.icon} className="size-4 text-violet-600" />
                     {v.name}
                     {v.plate && <span className="text-xs text-muted-foreground">· {v.plate}</span>}
                   </label>

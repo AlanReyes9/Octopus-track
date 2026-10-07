@@ -1,4 +1,5 @@
 import { ALL_PROTOCOLS } from "@octopus/telemetry";
+import { VEHICLE_ICON_IDS } from "./vehicle-icon-ids";
 import { z } from "zod";
 
 export const vehicleSchema = z.object({
@@ -6,6 +7,14 @@ export const vehicleSchema = z.object({
   plate: z.string().trim().max(20).nullish(),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   deviceId: z.uuid().nullish(),
+});
+
+/** Datos de la unidad que porta el equipo (se crean junto con el dispositivo). */
+export const unitSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  plate: z.string().trim().max(20).nullish(),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#7c3aed"),
+  icon: z.enum(VEHICLE_ICON_IDS).default("car"),
 });
 
 export const deviceSchema = z.object({
@@ -25,6 +34,17 @@ export const deviceSchema = z.object({
 export const phoneDeviceSchema = z.object({
   kind: z.literal("phone"),
   name: z.string().trim().min(1).max(100),
+  phone: z.string().trim().max(30).nullish(),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#7c3aed"),
+  icon: z.enum(VEHICLE_ICON_IDS).default("person"),
+});
+
+/** Alta unificada: equipo GPS + unidad. */
+export const gpsDeviceCreateSchema = deviceSchema.omit({ name: true, kind: true }).extend({ kind: z.literal("gps").default("gps") }).merge(unitSchema);
+
+/** Edición unificada del dispositivo y su unidad. */
+export const deviceUpdateSchema = unitSchema.partial().extend({
+  protocol: deviceSchema.shape.protocol.unwrap().optional(),
   phone: z.string().trim().max(30).nullish(),
 });
 
