@@ -1,7 +1,7 @@
 import formbody from "@fastify/formbody";
 import Fastify from "fastify";
 import type { Pipeline, ProcessResult } from "@octopus/ingest-core";
-import { decodeOsmAnd, decodeTraccar, TelemetryParseError, type TelemetryEvent } from "@octopus/telemetry";
+import { decodeJsonGateway, decodeOsmAnd, TelemetryParseError, type TelemetryEvent } from "@octopus/telemetry";
 import { timingSafeEqual } from "node:crypto";
 
 function tokenMatches(expected: string | undefined, provided: unknown): boolean {
@@ -42,17 +42,17 @@ export function buildHttpServer(pipeline: Pipeline, opts: { ingestToken?: string
 
   app.get("/health", async () => ({ ok: true }));
 
-  /** Forwarder de Traccar (forward.url / event.forward.url, JSON). */
-  app.post("/traccar", async (req, reply) => {
+  /** Gateway HTTP JSON (servidores de protocolos GPS que reenvían posiciones). */
+  app.post("/gateway", async (req, reply) => {
     const token = req.headers["x-ingest-token"] ?? (req.query as Record<string, string>).token;
     if (!tokenMatches(opts.ingestToken, token)) return reply.code(401).send({ error: "token inválido" });
-    const r = await handle(() => decodeTraccar(req.body));
+    const r = await handle(() => decodeJsonGateway(req.body));
     return reply.code(r.code).send(r.body);
   });
 
   /**
-   * Protocolo OsmAnd (Traccar Client, apps móviles). Es la URL del "servidor"
-   * en la app; el token va en la query (?token=...) porque la app no permite headers.
+   * Protocolo HTTP OsmAnd (apps móviles de rastreo). El token va en la query
+   * (?token=...) porque esas apps no permiten cabeceras personalizadas.
    */
   app.all("/osmand", async (req, reply) => {
     const params = { ...(req.query as Record<string, string>), ...((req.body as Record<string, string>) ?? {}) };

@@ -1,70 +1,112 @@
 "use client";
 
-import type { Marker, Popup } from "maplibre-gl";
-import { Bell, Gauge, Power, Radio, Search } from "lucide-react";
+import type { GeoJSONSource, Marker } from "maplibre-gl";
+import type { Feature } from "geojson";
+import {
+  Battery,
+  Bell,
+  Clock,
+  Crosshair,
+  ExternalLink,
+  Gauge,
+  History,
+  Navigation,
+  Power,
+  Radio,
+  Search,
+  Send,
+  Smartphone,
+  Truck,
+  X,
+} from "lucide-react";
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { DeviceTransport } from "@octopus/telemetry";
+import { CommandsDialog } from "@/components/app/commands-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useLivePositions } from "@/hooks/use-live-positions";
 import { api } from "@/lib/fetcher";
+import { googleMapsDirections, googleMapsPlace } from "@/lib/maps-links";
 import { cn, formatDateTime, isOnline, timeAgo } from "@/lib/utils";
 import type { LivePosition } from "@/server/positions";
-import { createVehicleMarkerElement, setMarkerCourse } from "./vehicle-marker";
 import { syncGeofenceLayer, useMap, type GeofenceFeature } from "./use-map";
+import { createVehicleMarkerElement, setMarkerCourse } from "./vehicle-marker";
 
-function popupHtml(p: LivePosition) {
-  const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-  return `
-    <div style="min-width:180px">
-      <div style="font-weight:600">${esc(p.vehicleName ?? p.deviceName)}</div>
-      ${p.plate ? `<div style="opacity:.7">${esc(p.plate)}</div>` : ""}
-      <div style="margin-top:4px">${(p.speedKmh ?? 0).toFixed(0)} km/h · ${p.ignition ? "Encendido" : "Apagado"}</div>
-      <div style="opacity:.7">${formatDateTime(p.time)}</div>
-      <div style="opacity:.7;font-family:monospace">${p.latitude.toFixed(6)}, ${p.longitude.toFixed(6)}</div>
-    </div>`;
+const TRAIL_POINTS = 120;
+
+function transportOf(p: LivePosition): DeviceTransport | null {
+  if (p.kind === "phone") return "phone";
+  return p.protocol === "gateway" || p.protocol === "tcp-text" ? p.protocol : null;
 }
 
-export function LiveDashboard() {
+export function LiveDashboard({ canManage }: { canManage: boolean }) {
   const { containerRef, map, lib } = useMap();
   const { positions, alerts, mode, loaded } = useLivePositions();
-  const markers = useRef(new Map<string, { marker: Marker; popup: Popup; el: HTMLDivElement }>());
+  const markers = useRef(new Map<string, { marker: Marker; el: HTMLDivElement }>());
+  const trails = useRef(new Map<string, [number, number][]>());
   const fitted = useRef(false);
   const [selected, setSelected] = useState<string | null>(null);
+  const [follow, setFollow] = useState(true);
   const [query, setQuery] = useState("");
+  const [commandsOpen, setCommandsOpen] = useState(false);
   const [, setTick] = useState(0);
 
-  // Refresca los "hace X" cada 15 s.
   useEffect(() => {
     const t = setInterval(() => setTick((n) => n + 1), 15_000);
     return () => clearInterval(t);
   }, []);
 
-  // Geocercas como capa de contexto.
+  // Geocercas de contexto + capa de estela del seleccionado.
   useEffect(() => {
     if (!map) return;
     api<GeofenceFeature[]>("/api/geofences")
       .then((g) => syncGeofenceLayer(map, g))
       .catch(() => {});
+    map.addSource("trail", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    map.addLayer({
+      id: "trail",
+      type: "line",
+      source: "trail",
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: { "line-color": "#7c3aed", "line-width": 4, "line-opacity": 0.75 },
+    });
+    // Si el usuario mueve el mapa manualmente, se desactiva el seguimiento.
+    const stop = () => setFollow(false);
+    map.on("dragstart", stop);
+    return () => {
+      map.off("dragstart", stop);
+    };
   }, [map]);
 
-  // Sincroniza marcadores con las posiciones.
+  // Marcadores y estelas.
   useEffect(() => {
     if (!map || !lib) return;
     const seen = new Set<string>();
     for (const p of positions) {
       seen.add(p.deviceId);
+      const trail = trails.current.get(p.deviceId) ?? [];
+      const last = trail.at(-1);
+      if (!last || last[0] !== p.longitude || last[1] !== p.latitude) {
+        trail.push([p.longitude, p.latitude]);
+        if (trail.length > TRAIL_POINTS) trail.shift();
+        trails.current.set(p.deviceId, trail);
+      }
       const existing = markers.current.get(p.deviceId);
       if (existing) {
         existing.marker.setLngLat([p.longitude, p.latitude]);
-        existing.popup.setHTML(popupHtml(p));
         setMarkerCourse(existing.el, p.course);
       } else {
         const el = createVehicleMarkerElement(p.color);
         setMarkerCourse(el, p.course);
-        const popup = new lib.Popup({ offset: 16, closeButton: false }).setHTML(popupHtml(p));
-        const marker = new lib.Marker({ element: el }).setLngLat([p.longitude, p.latitude]).setPopup(popup).addTo(map);
-        el.addEventListener("click", () => setSelected(p.deviceId));
-        markers.current.set(p.deviceId, { marker, popup, el });
+        el.title = p.vehicleName ?? p.deviceName;
+        el.addEventListener("click", () => {
+          setSelected(p.deviceId);
+          setFollow(true);
+        });
+        const marker = new lib.Marker({ element: el }).setLngLat([p.longitude, p.latitude]).addTo(map);
+        markers.current.set(p.deviceId, { marker, el });
       }
     }
     for (const [id, m] of markers.current) {
@@ -81,98 +123,110 @@ export function LiveDashboard() {
     }
   }, [positions, map, lib]);
 
-  // Seguir al vehículo seleccionado.
-  const selectedPos = positions.find((p) => p.deviceId === selected);
+  const current = positions.find((p) => p.deviceId === selected) ?? null;
+
+  // Resaltado, estela y seguimiento del seleccionado.
   useEffect(() => {
-    if (!map || !selectedPos) return;
-    map.easeTo({ center: [selectedPos.longitude, selectedPos.latitude], duration: 600 });
-  }, [map, selectedPos?.latitude, selectedPos?.longitude]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!map) return;
+    for (const [id, m] of markers.current) m.el.style.zIndex = id === selected ? "10" : "";
+    const coords = selected ? trails.current.get(selected) ?? [] : [];
+    const data: Feature = { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: coords } };
+    (map.getSource("trail") as GeoJSONSource | undefined)?.setData(data);
+    if (current && follow) {
+      map.easeTo({ center: [current.longitude, current.latitude], zoom: Math.max(map.getZoom(), 15), duration: 800 });
+    }
+  }, [map, selected, follow, current?.latitude, current?.longitude]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
-    return positions.filter((p) =>
-      [p.vehicleName, p.deviceName, p.plate, p.imei].some((s) => s?.toLowerCase().includes(q)),
-    );
+    return positions.filter((p) => [p.vehicleName, p.deviceName, p.plate, p.imei].some((s) => s?.toLowerCase().includes(q)));
   }, [positions, query]);
 
   const online = positions.filter((p) => isOnline(p.time)).length;
+  const moving = positions.filter((p) => isOnline(p.time) && (p.speedKmh ?? 0) > 3).length;
 
   return (
     <div className="flex h-full flex-col lg:flex-row">
-      <section className="flex max-h-[45svh] flex-col border-b lg:max-h-none lg:w-80 lg:border-r lg:border-b-0">
-        <div className="space-y-3 border-b p-4">
+      {/* Lista de unidades */}
+      <section className="flex max-h-[45svh] flex-col border-b bg-white lg:max-h-none lg:w-[340px] lg:border-r lg:border-b-0">
+        <div className="space-y-4 border-b p-4">
           <div className="flex items-center justify-between">
-            <h1 className="font-semibold">Flota</h1>
+            <h1 className="text-lg font-bold tracking-tight">Mapa en vivo</h1>
             <Badge variant={mode === "websocket" ? "success" : "secondary"} title="Canal de actualización">
               <Radio className="size-3" />
-              {mode === "websocket" ? "En vivo" : mode === "polling" ? "Polling 10 s" : "Conectando"}
+              {mode === "websocket" ? "Tiempo real" : mode === "polling" ? "Cada 10 s" : "Conectando"}
             </Badge>
           </div>
-          <div className="grid grid-cols-3 gap-2 text-center text-xs">
+          <div className="grid grid-cols-3 gap-2 text-center">
             <Stat label="Unidades" value={positions.length} />
-            <Stat label="En línea" value={online} className="text-emerald-600" />
-            <Stat label="Sin señal" value={positions.length - online} className="text-muted-foreground" />
+            <Stat label="En línea" value={online} accent="text-emerald-600" />
+            <Stat label="En marcha" value={moving} accent="text-violet-600" />
           </div>
           <div className="relative">
-            <Search className="absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
-            <Input placeholder="Buscar unidad, placa o IMEI" className="pl-8" value={query} onChange={(e) => setQuery(e.target.value)} />
+            <Search className="absolute top-2.5 left-3 size-4 text-muted-foreground" />
+            <Input placeholder="Buscar unidad, placa o IMEI" className="pl-9" value={query} onChange={(e) => setQuery(e.target.value)} />
           </div>
         </div>
-        <ul className="flex-1 overflow-auto">
+        <ul className="flex-1 overflow-auto p-2">
           {loaded && filtered.length === 0 && (
             <li className="p-4 text-sm text-muted-foreground">
-              Sin posiciones todavía. Registra un dispositivo y envía telemetría a la ingesta.
+              {positions.length === 0 ? "Aún no hay posiciones. Registra un dispositivo o vincula un teléfono." : "Sin resultados."}
             </li>
           )}
-          {filtered.map((p) => (
-            <li key={p.deviceId}>
-              <button
-                onClick={() => {
-                  setSelected(p.deviceId);
-                  markers.current.get(p.deviceId)?.marker.togglePopup();
-                }}
-                className={cn(
-                  "flex w-full items-start gap-3 border-b px-4 py-3 text-left hover:bg-muted/60",
-                  selected === p.deviceId && "bg-muted",
-                )}
-              >
-                <span className="mt-1 size-3 shrink-0 rounded-full" style={{ background: p.color }} />
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="truncate font-medium">{p.vehicleName ?? p.deviceName}</span>
-                    <span className={cn("size-2 rounded-full", isOnline(p.time) ? "bg-emerald-500" : "bg-zinc-400")} />
+          {filtered.map((p) => {
+            const on = isOnline(p.time);
+            const Icon = p.kind === "phone" ? Smartphone : Truck;
+            return (
+              <li key={p.deviceId}>
+                <button
+                  onClick={() => {
+                    setSelected(p.deviceId);
+                    setFollow(true);
+                  }}
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-violet-50",
+                    selected === p.deviceId && "bg-violet-50 ring-1 ring-violet-200",
+                  )}
+                >
+                  <span className="relative flex size-10 shrink-0 items-center justify-center rounded-xl text-white" style={{ background: p.color }}>
+                    <Icon className="size-5" />
+                    <span className={cn("absolute -right-0.5 -bottom-0.5 size-3 rounded-full border-2 border-white", on ? "bg-emerald-500" : "bg-zinc-400")} />
                   </span>
-                  <span className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Gauge className="size-3" />
-                      {(p.speedKmh ?? 0).toFixed(0)} km/h
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold">{p.vehicleName ?? p.deviceName}</span>
+                    <span className="flex items-center gap-2.5 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Gauge className="size-3" />
+                        {(p.speedKmh ?? 0).toFixed(0)} km/h
+                      </span>
+                      {p.kind === "gps" && (
+                        <span className="flex items-center gap-1">
+                          <Power className={cn("size-3", p.ignition && "text-emerald-600")} />
+                          {p.ignition === null ? "—" : p.ignition ? "On" : "Off"}
+                        </span>
+                      )}
+                      <span>{timeAgo(p.time)}</span>
                     </span>
-                    <span className="flex items-center gap-1">
-                      <Power className={cn("size-3", p.ignition && "text-emerald-600")} />
-                      {p.ignition === null ? "—" : p.ignition ? "On" : "Off"}
-                    </span>
-                    <span>{timeAgo(p.time)}</span>
                   </span>
-                </span>
-              </button>
-            </li>
-          ))}
+                </button>
+              </li>
+            );
+          })}
         </ul>
         {alerts.length > 0 && (
-          <div className="max-h-48 overflow-auto border-t p-3">
-            <div className="mb-2 flex items-center gap-1 text-xs font-medium">
-              <Bell className="size-3" /> Alertas de geocerca
+          <div className="max-h-44 overflow-auto border-t p-3">
+            <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold">
+              <Bell className="size-3.5 text-violet-600" /> Alertas de geocerca
             </div>
-            <ul className="space-y-1 text-xs">
+            <ul className="space-y-1.5 text-xs">
               {alerts.map((a) => {
                 const unit = positions.find((p) => p.deviceId === a.deviceId);
                 return (
-                  <li key={`${a.deviceId}-${a.geofenceId}-${a.time}-${a.event}`}>
-                    <Badge variant={a.event === "enter" ? "success" : "warning"}>
-                      {a.event === "enter" ? "Entrada" : "Salida"}
-                    </Badge>{" "}
-                    {unit?.vehicleName ?? unit?.deviceName ?? "Unidad"} · {a.geofenceName} ·{" "}
-                    <span className="text-muted-foreground">{timeAgo(a.time)}</span>
+                  <li key={`${a.deviceId}-${a.geofenceId}-${a.time}-${a.event}`} className="flex flex-wrap items-center gap-1">
+                    <Badge variant={a.event === "enter" ? "success" : "warning"}>{a.event === "enter" ? "Entrada" : "Salida"}</Badge>
+                    <span className="font-medium">{unit?.vehicleName ?? unit?.deviceName ?? "Unidad"}</span>
+                    <span>· {a.geofenceName}</span>
+                    <span className="text-muted-foreground">· {timeAgo(a.time)}</span>
                   </li>
                 );
               })}
@@ -180,16 +234,107 @@ export function LiveDashboard() {
           </div>
         )}
       </section>
-      <div ref={containerRef} className="min-h-[55svh] flex-1" />
+
+      {/* Mapa + ficha del seleccionado */}
+      <div className="relative min-h-[55svh] flex-1">
+        <div className="absolute inset-0">
+          <div ref={containerRef} className="h-full w-full" />
+        </div>
+        {current && (
+          <div className="absolute inset-x-3 bottom-3 z-10 sm:right-auto sm:left-4 sm:w-[380px]">
+            <div className="rounded-2xl border bg-white/95 p-4 shadow-xl shadow-violet-900/10 backdrop-blur">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl text-white" style={{ background: current.color }}>
+                  {current.kind === "phone" ? <Smartphone className="size-5" /> : <Truck className="size-5" />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-semibold">{current.vehicleName ?? current.deviceName}</div>
+                  <div className="truncate text-xs text-muted-foreground">
+                    {[current.plate, current.vehicleName ? current.deviceName : null].filter(Boolean).join(" · ") || current.imei}
+                  </div>
+                </div>
+                <Badge variant={isOnline(current.time) ? "success" : "secondary"}>{isOnline(current.time) ? "En línea" : "Sin señal"}</Badge>
+                <button onClick={() => setSelected(null)} className="rounded-md p-1 text-muted-foreground hover:bg-muted" title="Cerrar">
+                  <X className="size-4" />
+                </button>
+              </div>
+
+              <dl className="mt-4 grid grid-cols-3 gap-2 text-center">
+                <Metric icon={Gauge} label="Velocidad" value={`${(current.speedKmh ?? 0).toFixed(0)} km/h`} />
+                {current.kind === "phone" ? (
+                  <Metric
+                    icon={Battery}
+                    label="Batería"
+                    value={typeof current.attributes.battery === "number" ? `${current.attributes.battery}%` : "—"}
+                  />
+                ) : (
+                  <Metric icon={Power} label="Motor" value={current.ignition === null ? "—" : current.ignition ? "Encendido" : "Apagado"} />
+                )}
+                <Metric icon={Clock} label="Reporte" value={timeAgo(current.time)} />
+              </dl>
+              <p className="mt-2 text-center font-mono text-[11px] text-muted-foreground" title={formatDateTime(current.time)}>
+                {current.latitude.toFixed(7)}, {current.longitude.toFixed(7)}
+              </p>
+
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <Button size="sm" variant={follow ? "default" : "outline"} onClick={() => setFollow((f) => !f)}>
+                  <Crosshair /> {follow ? "Siguiendo" : "Seguir"}
+                </Button>
+                <Button size="sm" variant="outline" asChild>
+                  <Link href={`/history?device=${current.deviceId}`}>
+                    <History /> Historial
+                  </Link>
+                </Button>
+                <Button size="sm" variant="outline" asChild>
+                  <a href={googleMapsPlace(current.latitude, current.longitude)} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink /> Google Maps
+                  </a>
+                </Button>
+                <Button size="sm" variant="outline" asChild>
+                  <a href={googleMapsDirections(current.latitude, current.longitude)} target="_blank" rel="noopener noreferrer">
+                    <Navigation /> Cómo llegar
+                  </a>
+                </Button>
+                {canManage && (
+                  <Button size="sm" variant="secondary" className="col-span-2" onClick={() => setCommandsOpen(true)}>
+                    <Send /> Enviar comando
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {current && canManage && (
+        <CommandsDialog
+          open={commandsOpen}
+          onOpenChange={setCommandsOpen}
+          deviceId={current.deviceId}
+          deviceName={current.vehicleName ?? current.deviceName}
+          transport={transportOf(current)}
+        />
+      )}
     </div>
   );
 }
 
-function Stat({ label, value, className }: { label: string; value: number; className?: string }) {
+function Stat({ label, value, accent }: { label: string; value: number; accent?: string }) {
   return (
-    <div className="rounded-md bg-muted px-2 py-1.5">
-      <div className={cn("text-lg font-semibold", className)}>{value}</div>
-      <div className="text-muted-foreground">{label}</div>
+    <div className="rounded-xl bg-violet-50/70 px-2 py-2">
+      <div className={cn("text-xl font-bold", accent)}>{value}</div>
+      <div className="text-[11px] text-muted-foreground">{label}</div>
+    </div>
+  );
+}
+
+function Metric({ icon: Icon, label, value }: { icon: typeof Gauge; label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-muted/60 px-2 py-2">
+      <dt className="flex items-center justify-center gap-1 text-[11px] text-muted-foreground">
+        <Icon className="size-3" /> {label}
+      </dt>
+      <dd className="truncate text-sm font-semibold">{value}</dd>
     </div>
   );
 }

@@ -1,23 +1,16 @@
 "use client";
 
 import type { FeatureCollection } from "geojson";
-import type { Map as MapLibreMap, StyleSpecification } from "maplibre-gl";
+import type { Map as MapLibreMap } from "maplibre-gl";
 import { useEffect, useRef, useState } from "react";
 
-/** Estilo base con teselas raster de OpenStreetMap (sin claves ni pagos). */
-export const OSM_STYLE: StyleSpecification = {
-  version: 8,
-  sources: {
-    osm: {
-      type: "raster",
-      tiles: [process.env.NEXT_PUBLIC_MAP_TILES_URL ?? "https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-      tileSize: 256,
-      maxzoom: 19,
-      attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>',
-    },
-  },
-  layers: [{ id: "osm", type: "raster", source: "osm" }],
-};
+/**
+ * Estilo vectorial de OpenFreeMap (gratuito, sin clave y apto para uso
+ * comercial; incluye la atribución a OpenStreetMap/OpenMapTiles).
+ * Configurable con NEXT_PUBLIC_MAP_STYLE_URL (p. ej. un servidor propio).
+ */
+export const MAP_STYLE_URL =
+  process.env.NEXT_PUBLIC_MAP_STYLE_URL ?? "https://tiles.openfreemap.org/styles/positron";
 
 export const DEFAULT_CENTER: [number, number] = [-99.1332, 19.4326];
 
@@ -31,6 +24,7 @@ export function useMap(opts: { center?: [number, number]; zoom?: number } = {}) 
   const containerRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<MapLibreMap | null>(null);
   const [lib, setLib] = useState<MapLib | null>(null);
+  // Nota: con estilos vectoriales "load" llega tras descargar el estilo.
 
   useEffect(() => {
     let disposed = false;
@@ -39,7 +33,7 @@ export function useMap(opts: { center?: [number, number]; zoom?: number } = {}) 
       if (disposed || !containerRef.current) return;
       instance = new maplibre.Map({
         container: containerRef.current,
-        style: OSM_STYLE,
+        style: MAP_STYLE_URL,
         center: opts.center ?? DEFAULT_CENTER,
         zoom: opts.zoom ?? 11,
         attributionControl: { compact: true },

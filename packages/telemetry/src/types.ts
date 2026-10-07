@@ -1,10 +1,10 @@
 /**
  * Evento de telemetría normalizado. Es el contrato único entre los
- * decodificadores de protocolo (Traccar, OsmAnd, TCP propio...) y el
+ * decodificadores de protocolo (gateway JSON, OsmAnd, TCP propio, teléfono) y el
  * pipeline de procesamiento. No contiene nada específico de BD ni de UI.
  */
 export interface TelemetryEvent {
-  /** Identificador del equipo (IMEI o uniqueId de Traccar). */
+  /** Identificador del equipo (IMEI o identificador único). */
   imei: string;
   /** Momento del fix GPS (UTC). */
   timestamp: Date;
@@ -26,7 +26,7 @@ export interface TelemetryEvent {
   source: TelemetrySource;
 }
 
-export type TelemetrySource = "traccar" | "osmand" | "tcp-text" | "simulator";
+export type TelemetrySource = "gateway" | "osmand" | "tcp-text" | "phone" | "simulator";
 
 /** Mensaje publicado en Redis y retransmitido a los navegadores. */
 export type LiveMessage =
@@ -51,8 +51,19 @@ export type LiveMessage =
       geofenceName: string;
       event: "enter" | "exit";
       time: string;
+    }
+  | {
+      type: "command";
+      tenantId: string;
+      deviceId: string;
+      commandId: string;
+      status: "pending" | "sent" | "delivered" | "failed" | "cancelled";
+      result: string | null;
     };
 
 /** Canal de Redis por inquilino. */
 export const tenantChannel = (tenantId: string) => `tenant:${tenantId}:live`;
 export const TENANT_CHANNEL_PATTERN = "tenant:*:live";
+
+/** Canal donde la web publica comandos nuevos para el servicio de ingesta. */
+export const COMMANDS_CHANNEL = "octopus:commands";

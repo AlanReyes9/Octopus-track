@@ -2,16 +2,18 @@ import { describe, expect, it } from "vitest";
 import {
   decodeOsmAnd,
   decodeTcpTextLine,
-  decodeTraccar,
+  decodeJsonGateway,
+  encodeTcpCommand,
   encodeTcpTextLine,
+  parseTcpCommandAck,
   haversineMeters,
   LineFramer,
   TelemetryParseError,
 } from "./index";
 
-describe("decodeTraccar", () => {
+describe("decodeJsonGateway (gateway HTTP JSON)", () => {
   it("normaliza un forward de posición (nudos -> km/h)", () => {
-    const e = decodeTraccar({
+    const e = decodeJsonGateway({
       position: {
         deviceId: 7,
         fixTime: "2026-10-07T12:00:00.000+00:00",
@@ -37,7 +39,7 @@ describe("decodeTraccar", () => {
 
   it("rechaza coordenadas fuera de rango", () => {
     expect(() =>
-      decodeTraccar({ position: { latitude: 91, longitude: 0, fixTime: Date.now() }, device: { uniqueId: "1" } }),
+      decodeJsonGateway({ position: { latitude: 91, longitude: 0, fixTime: Date.now() }, device: { uniqueId: "1" } }),
     ).toThrow(TelemetryParseError);
   });
 });
@@ -79,4 +81,17 @@ describe("protocolo TCP de texto", () => {
 
 it("haversine ~111 km por grado de latitud", () => {
   expect(haversineMeters({ latitude: 0, longitude: 0 }, { latitude: 1, longitude: 0 })).toBeCloseTo(111195, -2);
+});
+
+describe("comandos TCP", () => {
+  it("codifica sin permitir inyección de separadores", () => {
+    const id = "123e4567-e89b-12d3-a456-426614174000";
+    expect(encodeTcpCommand(id, "message", { text: "hola,*mundo\r\n$POS" })).toBe(`$CMD,${id},message,text=hola  mundo   POS*`);
+  });
+  it("interpreta ACKs", () => {
+    const id = "123e4567-e89b-12d3-a456-426614174000";
+    expect(parseTcpCommandAck(`$CMDACK,${id},OK*`)).toEqual({ id, ok: true, message: null });
+    expect(parseTcpCommandAck(`$CMDACK,${id},ERR,sin relé*`)).toEqual({ id, ok: false, message: "sin relé" });
+    expect(parseTcpCommandAck("$POS,1,2,3,4*")).toBeNull();
+  });
 });

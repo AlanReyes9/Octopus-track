@@ -39,7 +39,7 @@ export async function registerTenant(input: { company: string; name: string; ema
       .returning();
     const [user] = await tx
       .insert(users)
-      .values({ email: input.email.toLowerCase(), name: input.name, passwordHash })
+      .values({ email: input.email.toLowerCase(), name: input.name, passwordHash, termsAcceptedAt: new Date() })
       .returning();
     await tx.insert(memberships).values({ userId: user!.id, tenantId: tenant!.id, role: "owner" });
     return { user: user!, tenant: tenant!, role: "owner" as MembershipRole };

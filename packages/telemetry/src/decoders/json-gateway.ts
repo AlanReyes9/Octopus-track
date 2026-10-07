@@ -3,12 +3,13 @@ import { normalize, TelemetryParseError } from "../normalize";
 import type { TelemetryEvent } from "../types";
 
 /**
- * Decodifica el JSON que envía el forwarder de Traccar:
- *  - Posiciones (`forward.url` + `forward.json=true`): { position, device }
- *  - Eventos (`event.forward.url`): { event, position, device }
- * Traccar reporta la velocidad en nudos.
+ * Gateway HTTP JSON: formato `{ position, device, event? }` que emiten los
+ * servidores de protocolos GPS de terceros al reenviar posiciones (p. ej.
+ * servidores de código abierto que traducen cientos de protocolos de
+ * hardware). Solo se interpreta el formato de datos; no se incluye código
+ * de terceros. La velocidad llega en nudos.
  */
-export function decodeTraccar(body: unknown): TelemetryEvent {
+export function decodeJsonGateway(body: unknown): TelemetryEvent {
   if (!body || typeof body !== "object") throw new TelemetryParseError("payload vacío");
   const b = body as Record<string, any>;
   const position = b.position ?? b;
@@ -16,8 +17,8 @@ export function decodeTraccar(body: unknown): TelemetryEvent {
   if (!position || typeof position !== "object") throw new TelemetryParseError("sin posición");
 
   const attributes: Record<string, unknown> = { ...(position.attributes ?? {}) };
-  if (b.event?.type) attributes.traccarEvent = b.event.type;
-  if (position.deviceId !== undefined) attributes.traccarDeviceId = position.deviceId;
+  if (b.event?.type) attributes.event = b.event.type;
+  if (position.deviceId !== undefined) attributes.gatewayDeviceId = position.deviceId;
 
   const speedKnots = position.speed;
   return normalize(
@@ -35,6 +36,6 @@ export function decodeTraccar(body: unknown): TelemetryEvent {
       valid: position.valid,
       attributes,
     },
-    "traccar",
+    "gateway",
   );
 }

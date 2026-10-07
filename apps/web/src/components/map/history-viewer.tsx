@@ -22,10 +22,16 @@ interface HistoryResponse {
 
 const toLocalInput = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 
-export function HistoryViewer({ devices }: { devices: { id: string; label: string }[] }) {
+export function HistoryViewer({
+  devices,
+  initialDeviceId,
+}: {
+  devices: { id: string; label: string }[];
+  initialDeviceId?: string;
+}) {
   const { containerRef, map, lib } = useMap();
   const now = new Date();
-  const [deviceId, setDeviceId] = useState(devices[0]?.id ?? "");
+  const [deviceId, setDeviceId] = useState(initialDeviceId ?? devices[0]?.id ?? "");
   const [from, setFrom] = useState(toLocalInput(new Date(now.getTime() - 24 * 3600_000)));
   const [to, setTo] = useState(toLocalInput(now));
   const [data, setData] = useState<HistoryResponse | null>(null);
@@ -57,6 +63,11 @@ export function HistoryViewer({ devices }: { devices: { id: string; label: strin
     }
   }
 
+  // Carga automática cuando se llega desde el mapa en vivo.
+  useEffect(() => {
+    if (initialDeviceId && map) void load();
+  }, [initialDeviceId, map]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Dibuja la ruta.
   useEffect(() => {
     if (!map || !lib || !data) return;
@@ -81,7 +92,7 @@ export function HistoryViewer({ devices }: { devices: { id: string; label: strin
         type: "line",
         source: "route",
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#2563eb", "line-width": 4 },
+        paint: { "line-color": "#7c3aed", "line-width": 4 },
       });
     }
     if (data.points.length) {
@@ -101,7 +112,7 @@ export function HistoryViewer({ devices }: { devices: { id: string; label: strin
       return;
     }
     if (!marker.current) {
-      marker.current = new lib.Marker({ element: createVehicleMarkerElement("#dc2626") })
+      marker.current = new lib.Marker({ element: createVehicleMarkerElement("#db2777") })
         .setLngLat([current.longitude, current.latitude])
         .addTo(map);
     }
@@ -125,8 +136,8 @@ export function HistoryViewer({ devices }: { devices: { id: string; label: strin
 
   return (
     <div className="flex h-full flex-col lg:flex-row">
-      <section className="space-y-4 border-b p-4 lg:w-80 lg:border-r lg:border-b-0">
-        <h1 className="font-semibold">Historial de rutas</h1>
+      <section className="space-y-4 overflow-auto border-b bg-white p-4 lg:w-[340px] lg:border-r lg:border-b-0">
+        <h1 className="text-lg font-bold tracking-tight">Historial de rutas</h1>
         <form onSubmit={load} className="grid gap-3">
           <div className="grid gap-1.5">
             <Label htmlFor="device">Unidad</Label>
@@ -203,7 +214,7 @@ export function HistoryViewer({ devices }: { devices: { id: string; label: strin
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md bg-muted px-3 py-2">
+    <div className="rounded-xl bg-violet-50/70 px-3 py-2">
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className="font-semibold">{value}</dd>
     </div>

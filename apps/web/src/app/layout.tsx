@@ -1,14 +1,21 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
+
 export const metadata: Metadata = {
-  title: "Octopus Track — Rastreo GPS de flotas",
-  description: "Plataforma SaaS multi-empresa de monitoreo GPS en tiempo real",
+  title: { default: "Octopus Track — Rastreo GPS en tiempo real", template: "%s · Octopus Track" },
+  description:
+    "Plataforma de monitoreo de flotas y teléfonos en tiempo real: mapa en vivo, historial de rutas, geocercas y comandos remotos.",
+  applicationName: "Octopus Track",
 };
+
+export const viewport: Viewport = { themeColor: "#6d28d9" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es">
+    <html lang="es" className={inter.variable}>
       <body>{children}</body>
     </html>
   );

@@ -1,18 +1,23 @@
 import "server-only";
-import { and, desc, devices, eq, getDb, sql, vehicles } from "@octopus/db";
+import { and, desc, devices, eq, getDb, inArray, sql, vehicles } from "@octopus/db";
 import { HttpError } from "@/lib/api";
 
 /* Todas las funciones reciben tenantId: el aislamiento multi-empresa vive aquí. */
 
 // ------------------------------------------------------------------ dispositivos
-export async function listDevices(tenantId: string) {
+export async function listDevices(tenantId: string, visible: string[] | null = null) {
+  if (visible && visible.length === 0) return [];
   return getDb()
     .select({
       id: devices.id,
       imei: devices.imei,
       name: devices.name,
       protocol: devices.protocol,
+      kind: devices.kind,
       phone: devices.phone,
+      consentAt: devices.consentAt,
+      consentName: devices.consentName,
+      consentRevokedAt: devices.consentRevokedAt,
       lastSeenAt: devices.lastSeenAt,
       createdAt: devices.createdAt,
       vehicleId: vehicles.id,
@@ -20,7 +25,7 @@ export async function listDevices(tenantId: string) {
     })
     .from(devices)
     .leftJoin(vehicles, eq(vehicles.deviceId, devices.id))
-    .where(eq(devices.tenantId, tenantId))
+    .where(and(eq(devices.tenantId, tenantId), visible ? inArray(devices.id, visible) : undefined))
     .orderBy(desc(devices.createdAt));
 }
 
@@ -30,7 +35,7 @@ export async function createDevice(
 ) {
   const [row] = await getDb()
     .insert(devices)
-    .values({ tenantId, imei: input.imei, name: input.name, protocol: input.protocol, phone: input.phone ?? null })
+    .values({ tenantId, kind: "gps", imei: input.imei, name: input.name, protocol: input.protocol, phone: input.phone ?? null })
     .returning();
   return row!;
 }
@@ -57,7 +62,8 @@ export async function deleteDevice(tenantId: string, id: string) {
 }
 
 // ------------------------------------------------------------------ vehículos
-export async function listVehicles(tenantId: string) {
+export async function listVehicles(tenantId: string, visible: string[] | null = null) {
+  if (visible && visible.length === 0) return [];
   return getDb()
     .select({
       id: vehicles.id,
@@ -66,11 +72,12 @@ export async function listVehicles(tenantId: string) {
       color: vehicles.color,
       deviceId: vehicles.deviceId,
       deviceImei: devices.imei,
+      deviceKind: devices.kind,
       lastSeenAt: devices.lastSeenAt,
     })
     .from(vehicles)
     .leftJoin(devices, eq(devices.id, vehicles.deviceId))
-    .where(eq(vehicles.tenantId, tenantId))
+    .where(and(eq(vehicles.tenantId, tenantId), visible ? inArray(vehicles.id, visible) : undefined))
     .orderBy(vehicles.name);
 }
 

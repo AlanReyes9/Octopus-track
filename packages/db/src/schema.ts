@@ -5,6 +5,7 @@
  */
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   customType,
   index,
@@ -32,6 +33,8 @@ const geographyPolygon = customType<{ data: string }>({
 
 export const membershipRole = pgEnum("membership_role", ["owner", "admin", "viewer"]);
 export const geofenceEventType = pgEnum("geofence_event_type", ["enter", "exit"]);
+export const deviceKind = pgEnum("device_kind", ["gps", "phone"]);
+export const commandStatus = pgEnum("command_status", ["pending", "sent", "delivered", "failed", "cancelled"]);
 
 // ---------------------------------------------------------------- tenants / auth
 export const tenants = pgTable("tenants", {
@@ -46,6 +49,8 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   name: text("name").notNull(),
   passwordHash: text("password_hash").notNull(),
+  termsAcceptedAt: ts("terms_accepted_at"),
+  mustChangePassword: boolean("must_change_password").notNull().default(false),
   createdAt: ts("created_at").notNull().defaultNow(),
 });
 
@@ -66,8 +71,14 @@ export const devices = pgTable("devices", {
   tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
   imei: varchar("imei", { length: 32 }).notNull().unique(),
   name: text("name").notNull(),
-  protocol: text("protocol").notNull().default("traccar"),
+  protocol: text("protocol").notNull().default("gateway"),
   phone: text("phone"),
+  kind: deviceKind("kind").notNull().default("gps"),
+  trackingTokenHash: text("tracking_token_hash").unique(),
+  consentAt: ts("consent_at"),
+  consentName: text("consent_name"),
+  consentUserAgent: text("consent_user_agent"),
+  consentRevokedAt: ts("consent_revoked_at"),
   lastSeenAt: ts("last_seen_at"),
   createdAt: ts("created_at").notNull().defaultNow(),
 });
@@ -78,7 +89,7 @@ export const vehicles = pgTable("vehicles", {
   deviceId: uuid("device_id").unique().references(() => devices.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   plate: text("plate"),
-  color: varchar("color", { length: 9 }).notNull().default("#2563eb"),
+  color: varchar("color", { length: 9 }).notNull().default("#7c3aed"),
   createdAt: ts("created_at").notNull().defaultNow(),
 });
 
@@ -150,8 +161,49 @@ export const geofenceEvents = pgTable(
   (t) => [primaryKey({ columns: [t.deviceId, t.geofenceId, t.time, t.type] })],
 );
 
+// ---------------------------------------------------------------- acceso de clientes
+export const userVehicleAccess = pgTable(
+  "user_vehicle_access",
+  {
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    vehicleId: uuid("vehicle_id").notNull().references(() => vehicles.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.vehicleId] })],
+);
+
+// ---------------------------------------------------------------- consentimiento (teléfonos)
+export const consentLog = pgTable("consent_log", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  deviceId: uuid("device_id").notNull().references(() => devices.id, { onDelete: "cascade" }),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  action: text("action").$type<"granted" | "revoked">().notNull(),
+  holderName: text("holder_name"),
+  userAgent: text("user_agent"),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});
+
+// ---------------------------------------------------------------- comandos
+export const deviceCommands = pgTable("device_commands", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  deviceId: uuid("device_id").notNull().references(() => devices.id, { onDelete: "cascade" }),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  type: text("type").notNull(),
+  params: jsonb("params").$type<Record<string, string | number | boolean>>().notNull().default(sql`'{}'::jsonb`),
+  status: commandStatus("status").notNull().default("pending"),
+  result: text("result"),
+  createdAt: ts("created_at").notNull().defaultNow(),
+  sentAt: ts("sent_at"),
+  completedAt: ts("completed_at"),
+});
+
 export type Tenant = typeof tenants.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Device = typeof devices.$inferSelect;
 export type Vehicle = typeof vehicles.$inferSelect;
+export type DeviceCommand = typeof deviceCommands.$inferSelect;
+export type CommandStatus = (typeof commandStatus.enumValues)[number];
+export type DeviceKind = (typeof deviceKind.enumValues)[number];
 export type MembershipRole = (typeof membershipRole.enumValues)[number];

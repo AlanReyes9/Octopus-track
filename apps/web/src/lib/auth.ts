@@ -57,14 +57,18 @@ export async function getSession(): Promise<Session | null> {
   }
 }
 
+/** Registro público de empresas (desactivar con ALLOW_SIGNUP=false). */
+export const signupEnabled = () => process.env.ALLOW_SIGNUP !== "false";
+
 const RANK: Record<MembershipRole, number> = { viewer: 0, admin: 1, owner: 2 };
 export const canManage = (role: MembershipRole) => RANK[role] >= RANK.admin;
 
 /** Token corto para el gateway WebSocket (apps/realtime). */
-export async function createRealtimeToken(session: Session): Promise<string | null> {
+export async function createRealtimeToken(session: Session, deviceIds: string[] | null): Promise<string | null> {
   const s = process.env.REALTIME_JWT_SECRET;
   if (!s) return null;
-  return new SignJWT({ tid: session.tenantId })
+  // dids: lista de dispositivos permitidos para usuarios cliente (null = todos).
+  return new SignJWT(deviceIds ? { tid: session.tenantId, dids: deviceIds } : { tid: session.tenantId })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(session.userId)
     .setIssuedAt()

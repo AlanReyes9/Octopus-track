@@ -1,5 +1,6 @@
 import "server-only";
 import { getDb, sql } from "@octopus/db";
+import { deviceFilter } from "./access";
 
 export interface GeofenceDto {
   id: string;
@@ -50,7 +51,7 @@ export async function deleteGeofence(tenantId: string, id: string) {
   return rows.length > 0;
 }
 
-export async function recentGeofenceEvents(tenantId: string, limit = 50) {
+export async function recentGeofenceEvents(tenantId: string, visible: string[] | null = null, limit = 50) {
   const rows = await getDb().execute<Record<string, unknown>>(sql`
     SELECT e.time, e.type, e.latitude, e.longitude, g.name AS geofence_name, g.color,
            d.name AS device_name, v.name AS vehicle_name
@@ -58,7 +59,7 @@ export async function recentGeofenceEvents(tenantId: string, limit = 50) {
     JOIN geofences g ON g.id = e.geofence_id
     JOIN devices d ON d.id = e.device_id
     LEFT JOIN vehicles v ON v.device_id = d.id
-    WHERE e.tenant_id = ${tenantId} AND e.time > now() - interval '30 days'
+    WHERE e.tenant_id = ${tenantId} AND e.time > now() - interval '30 days' AND ${deviceFilter(visible, sql.raw("e.device_id"))}
     ORDER BY e.time DESC LIMIT ${limit}
   `);
   return rows.map((r) => ({

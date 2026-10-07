@@ -120,7 +120,7 @@ export function VehiclesManager(props: { initial: VehicleRow[]; devices: DeviceO
                   </TableCell>
                   <TableCell>
                     {v.deviceId ? (
-                      <Badge variant={isOnline(v.lastSeenAt) ? "success" : "secondary"}>{timeAgo(v.lastSeenAt)}</Badge>
+                      <Badge variant={isOnline(v.lastSeenAt) ? "success" : "secondary"} suppressHydrationWarning>{timeAgo(v.lastSeenAt)}</Badge>
                     ) : (
                       <Badge variant="outline">Sin GPS</Badge>
                     )}
@@ -156,7 +156,7 @@ export function VehiclesManager(props: { initial: VehicleRow[]; devices: DeviceO
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="color">Color en el mapa</Label>
-                <Input id="color" name="color" type="color" defaultValue="#2563eb" className="h-9 w-20 p-1" />
+                <Input id="color" name="color" type="color" defaultValue="#7c3aed" className="h-9 w-20 p-1" />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="deviceId">Dispositivo GPS</Label>

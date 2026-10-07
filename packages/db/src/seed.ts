@@ -9,9 +9,9 @@ import { devices, memberships, tenants, users, vehicles } from "./schema";
 import { sql as dsql } from "drizzle-orm";
 
 const DEMO = [
-  { imei: "860000000000001", name: "GPS Camión 01", vehicle: "Camión 01", plate: "ABC-123", color: "#2563eb" },
-  { imei: "860000000000002", name: "GPS Furgoneta 02", vehicle: "Furgoneta 02", plate: "XYZ-987", color: "#16a34a" },
-  { imei: "860000000000003", name: "GPS Moto 03", vehicle: "Moto 03", plate: "MT-456", color: "#dc2626" },
+  { imei: "860000000000001", name: "GPS Camión 01", vehicle: "Camión 01", plate: "ABC-123", color: "#7c3aed" },
+  { imei: "860000000000002", name: "GPS Furgoneta 02", vehicle: "Furgoneta 02", plate: "XYZ-987", color: "#0ea5e9" },
+  { imei: "860000000000003", name: "GPS Moto 03", vehicle: "Moto 03", plate: "MT-456", color: "#db2777" },
 ];
 
 async function main() {
@@ -24,7 +24,12 @@ async function main() {
       .returning();
     const [user] = await db
       .insert(users)
-      .values({ email: "demo@octopus.track", name: "Admin Demo", passwordHash: await bcrypt.hash("demo1234", 10) })
+      .values({
+        email: "demo@octopus.track",
+        name: "Admin Demo",
+        passwordHash: await bcrypt.hash("demo1234", 10),
+        termsAcceptedAt: new Date(),
+      })
       .onConflictDoUpdate({ target: users.email, set: { name: "Admin Demo" } })
       .returning();
     await db.insert(memberships).values({ userId: user!.id, tenantId: tenant!.id, role: "owner" }).onConflictDoNothing();

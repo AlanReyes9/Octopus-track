@@ -2,7 +2,7 @@ import { decodeOsmAnd } from "@octopus/telemetry";
 import { errorResponse, json } from "@/lib/api";
 import { checkIngestToken, ingest } from "@/lib/ingest-http";
 
-/** Protocolo OsmAnd (Traccar Client): https://<app>/api/ingest/osmand?token=...&id=IMEI&lat=..&lon=.. */
+/** Protocolo HTTP OsmAnd (apps móviles): https://<app>/api/ingest/osmand?token=...&id=IMEI&lat=..&lon=.. */
 async function handler(req: Request) {
   try {
     const params = new URLSearchParams(new URL(req.url).search);

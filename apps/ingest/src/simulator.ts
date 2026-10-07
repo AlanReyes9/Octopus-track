@@ -58,6 +58,16 @@ values.imeis!.split(",").forEach((imei, idx) => {
     }, interval);
   });
   socket.setEncoding("utf8");
-  socket.on("data", (d: string) => d.includes("NAK") && console.warn(`[sim] ${imei}: ${d.trim()}`));
+  socket.on("data", (d: string) => {
+    for (const line of d.split(/\r?\n/).filter(Boolean)) {
+      if (line.includes("NAK")) console.warn(`[sim] ${imei}: ${line}`);
+      // Comandos remotos: el simulador confirma todos.
+      const m = /^\$CMD,([0-9a-f-]{36}),(\w+)/.exec(line);
+      if (m) {
+        console.log(`[sim] ${imei} recibió comando ${m[2]}`);
+        socket.write(`$CMDACK,${m[1]},OK*\r\n`);
+      }
+    }
+  });
   socket.on("error", (e) => console.error(`[sim] ${imei}: ${e.message}`));
 });

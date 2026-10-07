@@ -5,7 +5,7 @@ import { REQUIRED_ENV } from "@/lib/env";
 export const dynamic = "force-dynamic";
 
 const OPTIONAL = [
-  ["INGEST_TOKEN", "Habilita los webhooks /api/ingest/traccar y /api/ingest/osmand"],
+  ["INGEST_TOKEN", "Habilita la recepción de posiciones en /api/ingest/gateway y /api/ingest/osmand"],
   ["REDIS_URL", "Publica eventos en Redis Pub/Sub para el gateway WebSocket"],
   ["REALTIME_JWT_SECRET", "Firma los tokens del gateway WebSocket"],
   ["NEXT_PUBLIC_REALTIME_URL", "URL wss:// del gateway (si falta, la UI usa polling)"],

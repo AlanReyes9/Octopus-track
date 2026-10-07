@@ -2,11 +2,11 @@
 export function createVehicleMarkerElement(color: string): HTMLDivElement {
   const el = document.createElement("div");
   el.className = "vehicle-marker";
-  el.style.cssText = "width:30px;height:30px;cursor:pointer;";
+  el.style.cssText = "width:34px;height:34px;cursor:pointer;filter:drop-shadow(0 3px 6px rgba(46,16,101,.35));";
   el.innerHTML = `
-    <svg viewBox="0 0 30 30" width="30" height="30" style="transition:transform .6s ease">
-      <circle cx="15" cy="15" r="11" fill="${color}" stroke="white" stroke-width="3"/>
-      <path d="M15 7 L20 19 L15 16 L10 19 Z" fill="white"/>
+    <svg viewBox="0 0 34 34" width="34" height="34" style="transition:transform .6s ease">
+      <circle cx="17" cy="17" r="13" fill="${color}" stroke="white" stroke-width="3"/>
+      <path d="M17 8.5 L22.5 22 L17 18.6 L11.5 22 Z" fill="white"/>
     </svg>`;
   return el;
 }

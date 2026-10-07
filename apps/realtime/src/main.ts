@@ -24,8 +24,15 @@ const allowedOrigins = (process.env.REALTIME_ALLOWED_ORIGINS ?? "")
   .map((s) => s.trim())
   .filter(Boolean);
 
-/** tenantId → sockets conectados */
-const rooms = new Map<string, Set<WebSocket>>();
+/**
+ * tenantId → sockets conectados. `devices` = null: ve todo el tenant;
+ * conjunto: usuario cliente restringido a esos dispositivos.
+ */
+interface Client {
+  ws: WebSocket;
+  devices: Set<string> | null;
+}
+const rooms = new Map<string, Set<Client>>();
 
 const http = createServer((req, res) => {
   if (req.url === "/health") {
@@ -48,10 +55,12 @@ http.on("upgrade", async (req, socket, head) => {
     const { payload } = await jwtVerify(token, secret, { audience: "octopus-realtime" });
     const tenantId = payload.tid;
     if (typeof tenantId !== "string") throw new Error("tid");
+    const dids = Array.isArray(payload.dids) ? new Set(payload.dids.map(String)) : null;
 
     wss.handleUpgrade(req, socket, head, (ws) => {
-      const room = rooms.get(tenantId) ?? new Set();
-      room.add(ws);
+      const room = rooms.get(tenantId) ?? new Set<Client>();
+      const client: Client = { ws, devices: dids };
+      room.add(client);
       rooms.set(tenantId, room);
       ws.send(JSON.stringify({ type: "hello", tenantId }));
 
@@ -65,7 +74,7 @@ http.on("upgrade", async (req, socket, head) => {
 
       ws.on("close", () => {
         clearInterval(ping);
-        room.delete(ws);
+        room.delete(client);
         if (room.size === 0) rooms.delete(tenantId);
       });
     });
@@ -82,13 +91,23 @@ sub.on("pmessage", (_pattern, channel, message) => {
   const tenantId = channel.split(":")[1];
   const room = tenantId ? rooms.get(tenantId) : undefined;
   if (!room) return;
-  for (const ws of room) if (ws.readyState === WebSocket.OPEN) ws.send(message);
+  let deviceId: string | undefined;
+  try {
+    deviceId = (JSON.parse(message) as { deviceId?: string }).deviceId;
+  } catch {
+    return;
+  }
+  for (const { ws, devices } of room) {
+    if (ws.readyState !== WebSocket.OPEN) continue;
+    if (devices && (!deviceId || !devices.has(deviceId))) continue;
+    ws.send(message);
+  }
 });
 
 http.listen(port, () => console.log(`[realtime] escuchando en :${port}`));
 
 function shutdown() {
-  wss.clients.forEach((ws) => ws.close(1001, "shutdown"));
+  wss.clients.forEach((ws: WebSocket) => ws.close(1001, "shutdown"));
   sub.disconnect();
   http.close(() => process.exit(0));
 }

@@ -55,19 +55,19 @@ export function GeofenceEditor({ canManage }: { canManage: boolean }) {
   useEffect(() => {
     if (!map) return;
     map.addSource("draft", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-    map.addLayer({ id: "draft-fill", type: "fill", source: "draft", paint: { "fill-color": "#2563eb", "fill-opacity": 0.2 } });
+    map.addLayer({ id: "draft-fill", type: "fill", source: "draft", paint: { "fill-color": "#7c3aed", "fill-opacity": 0.2 } });
     map.addLayer({
       id: "draft-line",
       type: "line",
       source: "draft",
-      paint: { "line-color": "#2563eb", "line-width": 2, "line-dasharray": [2, 1] },
+      paint: { "line-color": "#7c3aed", "line-width": 2, "line-dasharray": [2, 1] },
     });
     map.addLayer({
       id: "draft-points",
       type: "circle",
       source: "draft",
       filter: ["==", "$type", "Point"],
-      paint: { "circle-radius": 5, "circle-color": "#fff", "circle-stroke-color": "#2563eb", "circle-stroke-width": 2 },
+      paint: { "circle-radius": 5, "circle-color": "#fff", "circle-stroke-color": "#7c3aed", "circle-stroke-width": 2 },
     });
     const onClick = (e: MapMouseEvent) => {
       if (!drawingRef.current) return;
@@ -134,8 +134,8 @@ export function GeofenceEditor({ canManage }: { canManage: boolean }) {
 
   return (
     <div className="flex h-full flex-col lg:flex-row">
-      <section className="flex flex-col gap-4 overflow-auto border-b p-4 lg:w-80 lg:border-r lg:border-b-0">
-        <h1 className="font-semibold">Geocercas</h1>
+      <section className="flex flex-col gap-4 overflow-auto border-b bg-white p-4 lg:w-[340px] lg:border-r lg:border-b-0">
+        <h1 className="text-lg font-bold tracking-tight">Geocercas</h1>
 
         {canManage && (
           <div className="space-y-3 rounded-md border p-3">

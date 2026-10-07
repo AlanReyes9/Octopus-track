@@ -8,7 +8,7 @@ type Ctx = { params: Promise<{ id: string }> };
 export const PATCH = withAuth<Ctx>(
   async (req, { session, params }) => {
     const { id } = await params;
-    const input = await parseBody(req, deviceSchema.omit({ imei: true }).partial());
+    const input = await parseBody(req, deviceSchema.omit({ imei: true, kind: true }).partial());
     const row = await updateDevice(session.tenantId, id, input);
     if (!row) throw new HttpError(404, "Dispositivo no encontrado");
     return json(row);

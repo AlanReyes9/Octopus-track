@@ -1,5 +1,6 @@
 import "server-only";
 import { getDb, sql } from "@octopus/db";
+import { deviceFilter } from "./access";
 import { pathLengthMeters } from "@octopus/telemetry";
 
 export interface LivePosition {
@@ -10,6 +11,9 @@ export interface LivePosition {
   vehicleName: string | null;
   plate: string | null;
   color: string;
+  kind: "gps" | "phone";
+  protocol: string;
+  attributes: Record<string, unknown>;
   time: string;
   latitude: number;
   longitude: number;
@@ -19,14 +23,14 @@ export interface LivePosition {
 }
 
 /** Última posición de cada dispositivo del tenant. */
-export async function latestPositions(tenantId: string): Promise<LivePosition[]> {
+export async function latestPositions(tenantId: string, visible: string[] | null = null): Promise<LivePosition[]> {
   const rows = await getDb().execute<Record<string, unknown>>(sql`
     SELECT l.device_id, d.name AS device_name, d.imei, v.id AS vehicle_id, v.name AS vehicle_name, v.plate,
-           COALESCE(v.color, '#64748b') AS color, l.time, l.latitude, l.longitude, l.speed_kmh, l.course, l.ignition
+           COALESCE(v.color, '#7c3aed') AS color, d.kind, d.protocol, l.attributes, l.time, l.latitude, l.longitude, l.speed_kmh, l.course, l.ignition
     FROM device_last_positions l
     JOIN devices d ON d.id = l.device_id
     LEFT JOIN vehicles v ON v.device_id = d.id
-    WHERE l.tenant_id = ${tenantId}
+    WHERE l.tenant_id = ${tenantId} AND ${deviceFilter(visible, sql.raw("l.device_id"))}
     ORDER BY COALESCE(v.name, d.name)
   `);
   return rows.map((r) => ({
@@ -37,6 +41,9 @@ export async function latestPositions(tenantId: string): Promise<LivePosition[]>
     vehicleName: (r.vehicle_name as string) ?? null,
     plate: (r.plate as string) ?? null,
     color: r.color as string,
+    kind: r.kind as "gps" | "phone",
+    protocol: r.protocol as string,
+    attributes: (r.attributes as Record<string, unknown>) ?? {},
     time: new Date(r.time as string).toISOString(),
     latitude: Number(r.latitude),
     longitude: Number(r.longitude),

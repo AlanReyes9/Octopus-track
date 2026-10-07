@@ -3,7 +3,8 @@ import { normalize, TelemetryParseError } from "../normalize";
 import type { TelemetryEvent } from "../types";
 
 /**
- * Protocolo OsmAnd (el que usan Traccar Client y muchas apps móviles):
+ * Protocolo HTTP "OsmAnd" (formato abierto usado por muchas apps móviles de
+ * rastreo):
  * `?id=IMEI&lat=..&lon=..&timestamp=..&speed=..&bearing=..&altitude=..`
  * La velocidad viene en nudos.
  */

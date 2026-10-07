@@ -13,6 +13,38 @@ export const deviceSchema = z.object({
     .trim()
     .regex(/^[A-Za-z0-9_-]{1,32}$/, "IMEI / identificador inválido"),
   name: z.string().trim().min(1).max(100),
-  protocol: z.enum(["traccar", "osmand", "tcp-text"]).default("traccar"),
+  kind: z.enum(["gps", "phone"]).default("gps"),
+  protocol: z.enum(["gateway", "osmand", "tcp-text"]).default("gateway"),
   phone: z.string().trim().max(30).nullish(),
+});
+
+export const phoneDeviceSchema = z.object({
+  kind: z.literal("phone"),
+  name: z.string().trim().min(1).max(100),
+  phone: z.string().trim().max(30).nullish(),
+});
+
+export const userCreateSchema = z.object({
+  name: z.string().trim().min(2).max(100),
+  email: z.email(),
+  role: z.enum(["viewer", "admin"]).default("viewer"),
+  vehicleIds: z.array(z.uuid()).max(500).default([]),
+});
+
+export const userUpdateSchema = z.object({
+  name: z.string().trim().min(2).max(100).optional(),
+  role: z.enum(["viewer", "admin"]).optional(),
+  vehicleIds: z.array(z.uuid()).max(500).optional(),
+});
+
+export const passwordSchema = z
+  .string()
+  .min(10, "Mínimo 10 caracteres")
+  .max(200)
+  .regex(/[A-Za-z]/, "Debe incluir letras")
+  .regex(/[0-9]/, "Debe incluir números");
+
+export const commandSchema = z.object({
+  type: z.string().min(1).max(40),
+  params: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).default({}),
 });
