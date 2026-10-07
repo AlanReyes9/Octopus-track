@@ -1,3 +1,5 @@
+import { getProtocol } from "./protocols/catalog";
+
 /**
  * Catálogo de comandos remotos. Contrato compartido entre la web (que los
  * encola) y los transportes que los entregan (TCP, gateway HTTP, teléfono).
@@ -11,14 +13,13 @@ export type CommandType =
   | "message"
   | "custom";
 
-export type DeviceTransport = "gateway" | "osmand" | "tcp-text" | "phone";
+/** Id de protocolo del dispositivo (ver protocols/catalog.ts). */
+export type DeviceTransport = string;
 
 export interface CommandDefinition {
   type: CommandType;
   label: string;
   description: string;
-  /** Transportes capaces de entregarlo. */
-  transports: DeviceTransport[];
   /** Requiere confirmación reforzada en la UI. */
   dangerous?: boolean;
   params?: { key: string; label: string; kind: "number" | "text"; min?: number; max?: number; maxLength?: number }[];
@@ -29,13 +30,11 @@ export const COMMANDS: CommandDefinition[] = [
     type: "requestPosition",
     label: "Solicitar posición",
     description: "Pide al equipo que reporte su ubicación inmediatamente.",
-    transports: ["tcp-text", "gateway", "phone"],
   },
   {
     type: "setInterval",
     label: "Cambiar intervalo de reporte",
     description: "Frecuencia de envío de posiciones, en segundos.",
-    transports: ["tcp-text", "gateway"],
     params: [{ key: "seconds", label: "Segundos", kind: "number", min: 5, max: 86400 }],
   },
   {
@@ -43,39 +42,36 @@ export const COMMANDS: CommandDefinition[] = [
     label: "Bloquear motor",
     description:
       "Corta la alimentación de combustible/encendido. Por seguridad solo se permite con el vehículo detenido.",
-    transports: ["tcp-text", "gateway"],
     dangerous: true,
   },
   {
     type: "engineResume",
     label: "Desbloquear motor",
     description: "Restablece el encendido tras un bloqueo.",
-    transports: ["tcp-text", "gateway"],
   },
   {
     type: "reboot",
     label: "Reiniciar equipo",
     description: "Reinicia el rastreador GPS.",
-    transports: ["tcp-text", "gateway"],
   },
   {
     type: "message",
     label: "Enviar mensaje",
     description: "Muestra un mensaje en el teléfono o en la pantalla del equipo.",
-    transports: ["phone", "tcp-text", "gateway"],
     params: [{ key: "text", label: "Mensaje", kind: "text", maxLength: 160 }],
   },
   {
     type: "custom",
     label: "Comando personalizado",
     description: "Texto libre que se envía tal cual al equipo (sintaxis del fabricante).",
-    transports: ["tcp-text", "gateway"],
     params: [{ key: "data", label: "Comando", kind: "text", maxLength: 200 }],
   },
 ];
 
-export function commandsFor(transport: DeviceTransport): CommandDefinition[] {
-  return COMMANDS.filter((c) => c.transports.includes(transport));
+/** Comandos que admite un protocolo según el catálogo. */
+export function commandsFor(protocol: DeviceTransport): CommandDefinition[] {
+  const supported = getProtocol(protocol)?.commands ?? [];
+  return COMMANDS.filter((c) => supported.includes(c.type));
 }
 
 export function getCommand(type: string): CommandDefinition | undefined {

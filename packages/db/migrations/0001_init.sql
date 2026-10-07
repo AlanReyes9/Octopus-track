@@ -188,12 +188,18 @@ BEGIN
     PERFORM create_hypertable('geofence_events', by_range('time', INTERVAL '7 days'));
 
     -- Compresión columnar de chunks antiguos, segmentada por dispositivo.
-    ALTER TABLE positions SET (
-      timescaledb.compress,
-      timescaledb.compress_segmentby = 'device_id',
-      timescaledb.compress_orderby = 'time DESC'
-    );
-    PERFORM add_compression_policy('positions', INTERVAL '7 days');
+    -- La compresión requiere la licencia comunitaria de TimescaleDB; en
+    -- servicios con la edición Apache (p. ej. Neon) se omite sin fallar.
+    BEGIN
+      ALTER TABLE positions SET (
+        timescaledb.compress,
+        timescaledb.compress_segmentby = 'device_id',
+        timescaledb.compress_orderby = 'time DESC'
+      );
+      PERFORM add_compression_policy('positions', INTERVAL '7 days');
+    EXCEPTION WHEN others THEN
+      RAISE NOTICE 'Compresión de TimescaleDB no disponible: %', SQLERRM;
+    END;
   END IF;
 END $$;
 
@@ -231,11 +237,12 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb') THEN
     PERFORM octopus_maintain_partitions();
     -- Programación diaria con pg_cron cuando está disponible (Supabase lo incluye).
-    IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pg_cron') THEN
+    BEGIN
       CREATE EXTENSION IF NOT EXISTS pg_cron;
       PERFORM cron.schedule('octopus-partitions', '15 0 * * *', 'SELECT public.octopus_maintain_partitions()');
-    ELSE
-      RAISE WARNING 'pg_cron no disponible: ejecuta SELECT octopus_maintain_partitions() a diario.';
-    END IF;
+    EXCEPTION WHEN others THEN
+      -- Sin pg_cron (p. ej. Neon/Vercel): lo ejecuta /api/cron/maintenance.
+      RAISE NOTICE 'pg_cron no disponible (%); usa el cron de la aplicación.', SQLERRM;
+    END;
   END IF;
 END $$;

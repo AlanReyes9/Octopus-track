@@ -69,12 +69,34 @@ Tests y comprobaciones: `pnpm test`, `pnpm typecheck`.
 
 ## Ingesta de telemetría
 
-| Origen | Endpoint |
+### Protocolos GPS (detección automática)
+
+El servicio `apps/ingest` escucha en **un único puerto TCP (5023)** e identifica el protocolo por los primeros bytes de cada conexión. Al recibir datos de un IMEI registrado, la web actualiza el protocolo del dispositivo; si el IMEI aún no está registrado, queda anotado y la web lo reconoce al darlo de alta (búsqueda por IMEI exacto).
+
+| Protocolo | Equipos típicos | Comandos |
+|---|---|---|
+| GT06 / Concox | Concox GT06N, Jimi, WeTrack, TK100 | posición, intervalo, bloqueo/desbloqueo, reinicio, personalizado (con respuesta del equipo) |
+| Teltonika Codec 8 / 8E | FMB, FMC, FMM, FMT | posición, bloqueo (DOUT1), reinicio, personalizado (Codec 12, con respuesta) |
+| GPS103 / Coban | TK103A/B, TK102B, GPS303 | posición, intervalo, bloqueo/desbloqueo, personalizado |
+| TK103 | Xexun TK103 y clones | personalizado |
+| H02 | Sinotrack ST-901/906 (texto) | personalizado |
+| Meitrack | MVT, T1, T3xx | personalizado |
+| Octopus `$POS` | Firmware propio | todos |
+
+Puertos dedicados opcionales: `INGEST_PROTOCOL_PORTS="gt06:5023,teltonika:5027,gps103:5001"`.
+Los decodificadores son código propio escrito a partir de las especificaciones públicas de cada fabricante (`packages/telemetry/src/protocols`) y tienen pruebas con tramas de ejemplo.
+
+**Otras marcas** (Queclink, Suntech, CalAmp, Ruptela, JT808, …): mediante un servidor de protocolos de código abierto que reenvía a `/api/ingest/gateway` (ejemplo en `deploy/protocol-gateway`). Sus comandos se reenvían a `COMMANDS_WEBHOOK_URL`.
+
+| Origen HTTP | Endpoint |
 |---|---|
-| Servidor de protocolos GPS externo (gateway JSON `{position, device}`) | `POST https://<web>/api/ingest/gateway` con cabecera `X-Ingest-Token`, o `POST http://<ingest>:4000/gateway` |
-| Apps móviles con protocolo HTTP OsmAnd | `https://<web>/api/ingest/osmand?token=INGEST_TOKEN&id=IMEI&lat=..&lon=..` |
-| Socket TCP propio | `<ingest>:5023`, una trama por línea: `$POS,<imei>,<iso8601>,<lat>,<lon>,<kmh>,<rumbo>,<alt>,<sats>,<ign>*` → `$ACK,<imei>` |
-| Teléfono Android/iOS (navegador) | Enlace de vinculación `https://<web>/rastreo#t=…` generado en *Dispositivos → Teléfono* |
+| Gateway JSON `{position, device}` | `POST https://<web>/api/ingest/gateway` con cabecera `X-Ingest-Token` |
+| Apps con protocolo OsmAnd | `https://<web>/api/ingest/osmand?token=INGEST_TOKEN&id=IMEI&lat=..&lon=..` |
+| Teléfono Android/iOS | Enlace `https://<web>/rastreo#t=…` generado en *Dispositivos → Teléfono* |
+
+### Comandos predefinidos y personalizados
+
+En el diálogo de comandos: pestaña **Predefinidos** (comandos integrados del protocolo + los guardados por la empresa en `command_templates`) y pestaña **Personalizado** (texto libre con la sintaxis del fabricante, con opción de guardarlo como predefinido, para un protocolo o para todos). El bloqueo de motor exige el vehículo detenido.
 
 ### Teléfonos con consentimiento
 
@@ -95,11 +117,18 @@ Catálogo en `packages/telemetry/src/commands.ts`: solicitar posición, interval
 
 ## Despliegue
 
-**Web → Vercel** (Root Directory `apps/web`, framework Next.js). Variables:
+**Web → Vercel** (Root Directory `apps/web`, framework Next.js).
+
+**Base de datos en Vercel (Neon, plan gratuito):** *Storage → Create Database → Neon* y conéctala al proyecto. En cada despliegue el build ejecuta `db:deploy`: aplica las migraciones con la URL directa (`DATABASE_URL_UNPOOLED`, también con prefijo, p. ej. `octopus_DATABASE_URL_UNPOOLED`) y, si la base está vacía, crea la empresa y el propietario con `BOOTSTRAP_ADMIN_EMAIL` / `BOOTSTRAP_ADMIN_PASSWORD` (contraseña temporal, se obliga a cambiarla). El mantenimiento diario (particiones y retención) lo hace Vercel Cron en `/api/cron/maintenance` (requiere `CRON_SECRET`).
+
+Variables:
 
 | Variable | Requerida | Descripción |
 |---|---|---|
-| `DATABASE_URL` | sí | PostgreSQL con PostGIS (Supabase o cualquier PostgreSQL 15+). En Supabase, URL del pooler (puerto 6543) con el rol `octopus_app`. |
+| `DATABASE_URL` | sí | PostgreSQL con PostGIS. Se aceptan también `octopus_DATABASE_URL` / `POSTGRES_URL` (integración Neon de Vercel). |
+| `BOOTSTRAP_ADMIN_EMAIL` / `BOOTSTRAP_ADMIN_PASSWORD` | primer despliegue | Propietario inicial si la base está vacía. |
+| `CRON_SECRET` | sí con Vercel Cron | Protege `/api/cron/maintenance`. |
+| `NEXT_PUBLIC_INGEST_HOST` / `NEXT_PUBLIC_INGEST_TCP_PORT` | no | Dirección del servicio TCP mostrada en *Protocolos*. |
 | `AUTH_SECRET` | sí | Secreto de sesión (≥ 32 caracteres aleatorios). |
 | `INGEST_TOKEN` | para ingesta | Token de `/api/ingest/gateway` y `/api/ingest/osmand`. |
 | `COMMANDS_WEBHOOK_URL` / `COMMANDS_WEBHOOK_TOKEN` | no | Destino de comandos para equipos tipo gateway. |

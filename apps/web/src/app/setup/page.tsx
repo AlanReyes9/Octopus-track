@@ -1,6 +1,6 @@
 import { CheckCircle2, XCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { REQUIRED_ENV } from "@/lib/env";
+import { missingEnv } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
@@ -18,15 +18,15 @@ export default function SetupPage() {
         <CardHeader>
           <CardTitle className="text-xl">Configuración pendiente</CardTitle>
           <CardDescription>
-            Octopus Track necesita PostgreSQL con PostGIS y TimescaleDB. Define estas variables de entorno en tu
-            proyecto de Vercel, ejecuta <code>pnpm db:migrate</code> contra la base y vuelve a desplegar.
+            Octopus Track necesita PostgreSQL con PostGIS. En Vercel: Storage → crea una base Neon y conéctala al
+            proyecto; las migraciones se aplican solas en el siguiente despliegue.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <ul className="space-y-2">
-            {REQUIRED_ENV.map((k) => (
+            {["AUTH_SECRET", "DATABASE_URL"].map((k) => (
               <li key={k} className="flex items-center gap-2 font-mono text-sm">
-                {process.env[k] ? (
+                {!missingEnv().includes(k) ? (
                   <CheckCircle2 className="size-4 text-emerald-600" />
                 ) : (
                   <XCircle className="size-4 text-destructive" />

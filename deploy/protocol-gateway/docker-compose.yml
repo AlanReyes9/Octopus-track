@@ -1,0 +1,14 @@
+# Ejemplo: servidor de protocolos de código abierto (Traccar, Apache-2.0)
+# reenviando posiciones a Octopus Track. Ajusta OCTOPUS_URL e INGEST_TOKEN.
+services:
+  protocol-gateway:
+    image: traccar/traccar:latest
+    restart: unless-stopped
+    ports:
+      - "5000-5200:5000-5200"
+      - "5000-5200:5000-5200/udp"
+    volumes:
+      - ./traccar.xml:/opt/traccar/conf/traccar.xml:ro
+      - gateway-data:/opt/traccar/data
+volumes:
+  gateway-data:

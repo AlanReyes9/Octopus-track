@@ -1,6 +1,7 @@
 import "server-only";
 import { timingSafeEqual } from "node:crypto";
-import type { ProcessResult } from "@octopus/ingest-core";
+import { getDb } from "@octopus/db";
+import { notePendingDevice, type ProcessResult } from "@octopus/ingest-core";
 import { TelemetryParseError, type TelemetryEvent } from "@octopus/telemetry";
 import { json } from "@/lib/api";
 import { getPipeline } from "@/lib/ingest";
@@ -30,5 +31,8 @@ export async function ingest(decode: () => TelemetryEvent): Promise<Response> {
     throw err;
   }
   const result = await getPipeline().process(event);
+  if (result.status === "unknown_device") {
+    await notePendingDevice(getDb(), event.imei, event.source, null).catch(() => {});
+  }
   return json(result, STATUS[result.status]);
 }

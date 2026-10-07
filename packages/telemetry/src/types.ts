@@ -26,7 +26,8 @@ export interface TelemetryEvent {
   source: TelemetrySource;
 }
 
-export type TelemetrySource = "gateway" | "osmand" | "tcp-text" | "phone" | "simulator";
+/** Protocolo de origen (id del catálogo de protocolos). */
+export type TelemetrySource = string;
 
 /** Mensaje publicado en Redis y retransmitido a los navegadores. */
 export type LiveMessage =

@@ -1,6 +1,7 @@
 import formbody from "@fastify/formbody";
 import Fastify from "fastify";
-import type { Pipeline, ProcessResult } from "@octopus/ingest-core";
+import { notePendingDevice, type Pipeline, type ProcessResult } from "@octopus/ingest-core";
+import type { Database } from "@octopus/db";
 import { decodeJsonGateway, decodeOsmAnd, TelemetryParseError, type TelemetryEvent } from "@octopus/telemetry";
 import { timingSafeEqual } from "node:crypto";
 
@@ -24,11 +25,11 @@ function statusCode(r: ProcessResult): number {
   }
 }
 
-export function buildHttpServer(pipeline: Pipeline, opts: { ingestToken?: string }) {
+export function buildHttpServer(pipeline: Pipeline, db: Database, opts: { ingestToken?: string }) {
   const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? "info" }, bodyLimit: 256 * 1024 });
   app.register(formbody);
 
-  const handle = async (decode: () => TelemetryEvent) => {
+  const handle = async (decode: () => TelemetryEvent, peer?: string) => {
     let event: TelemetryEvent;
     try {
       event = decode();
@@ -37,6 +38,7 @@ export function buildHttpServer(pipeline: Pipeline, opts: { ingestToken?: string
       throw err;
     }
     const result = await pipeline.process(event);
+    if (result.status === "unknown_device") await notePendingDevice(db, event.imei, event.source, peer);
     return { code: statusCode(result), body: result };
   };
 
@@ -46,7 +48,7 @@ export function buildHttpServer(pipeline: Pipeline, opts: { ingestToken?: string
   app.post("/gateway", async (req, reply) => {
     const token = req.headers["x-ingest-token"] ?? (req.query as Record<string, string>).token;
     if (!tokenMatches(opts.ingestToken, token)) return reply.code(401).send({ error: "token inválido" });
-    const r = await handle(() => decodeJsonGateway(req.body));
+    const r = await handle(() => decodeJsonGateway(req.body), req.ip);
     return reply.code(r.code).send(r.body);
   });
 
@@ -58,7 +60,7 @@ export function buildHttpServer(pipeline: Pipeline, opts: { ingestToken?: string
     const params = { ...(req.query as Record<string, string>), ...((req.body as Record<string, string>) ?? {}) };
     if (!tokenMatches(opts.ingestToken, params.token)) return reply.code(401).send({ error: "token inválido" });
     delete params.token;
-    const r = await handle(() => decodeOsmAnd(params));
+    const r = await handle(() => decodeOsmAnd(params), req.ip);
     return reply.code(r.code).send(r.body);
   });
 

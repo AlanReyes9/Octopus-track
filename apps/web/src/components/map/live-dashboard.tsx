@@ -21,7 +21,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { DeviceTransport } from "@octopus/telemetry";
 import { CommandsDialog } from "@/components/app/commands-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,11 +34,6 @@ import { syncGeofenceLayer, useMap, type GeofenceFeature } from "./use-map";
 import { createVehicleMarkerElement, setMarkerCourse } from "./vehicle-marker";
 
 const TRAIL_POINTS = 120;
-
-function transportOf(p: LivePosition): DeviceTransport | null {
-  if (p.kind === "phone") return "phone";
-  return p.protocol === "gateway" || p.protocol === "tcp-text" ? p.protocol : null;
-}
 
 export function LiveDashboard({ canManage }: { canManage: boolean }) {
   const { containerRef, map, lib } = useMap();
@@ -312,7 +306,7 @@ export function LiveDashboard({ canManage }: { canManage: boolean }) {
           onOpenChange={setCommandsOpen}
           deviceId={current.deviceId}
           deviceName={current.vehicleName ?? current.deviceName}
-          transport={transportOf(current)}
+          protocol={current.kind === "phone" ? "phone" : current.protocol}
         />
       )}
     </div>

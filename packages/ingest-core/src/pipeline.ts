@@ -177,6 +177,8 @@ export function createPipeline(opts: PipelineOptions) {
 
   return {
     process,
+    /** Busca el dispositivo por IMEI (con caché). */
+    resolve: resolveDevice,
     /** Invalida la caché (p. ej. tras reasignar un dispositivo). */
     invalidate: (imei?: string) => (imei ? cache.delete(imei) : cache.clear()),
   };

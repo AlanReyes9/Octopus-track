@@ -10,16 +10,17 @@
   "scripts": {
     "typecheck": "tsc -p .",
     "migrate": "tsx src/migrate.ts",
-    "seed": "tsx src/seed.ts"
+    "seed": "tsx src/seed.ts",
+    "db:deploy": "tsx src/deploy.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
     "drizzle-orm": "^0.45.0",
-    "postgres": "^3.4.7"
+    "postgres": "^3.4.7",
+    "tsx": "^4.20.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "tsx": "^4.20.0",
     "typescript": "^5.9.0"
   }
 }

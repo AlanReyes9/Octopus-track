@@ -10,9 +10,29 @@ export interface CreateDbOptions {
   max?: number;
 }
 
+/**
+ * URL de conexión de la aplicación (pooler). Admite la variable que crea la
+ * integración de Neon en Vercel con prefijo (octopus_DATABASE_URL), la de
+ * Vercel/Neon sin prefijo y DATABASE_URL genérica.
+ */
+export function databaseUrl(): string | undefined {
+  return process.env.octopus_DATABASE_URL || process.env.POSTGRES_URL || process.env.DATABASE_URL || undefined;
+}
+
+/** URL directa (sin pooler) para migraciones. */
+export function migrationUrl(): string | undefined {
+  return (
+    process.env.MIGRATION_DATABASE_URL ||
+    process.env.octopus_DATABASE_URL_UNPOOLED ||
+    process.env.DATABASE_URL_UNPOOLED ||
+    process.env.POSTGRES_URL_NON_POOLING ||
+    undefined
+  );
+}
+
 export function createDb(opts: CreateDbOptions = {}): { db: Database; sql: postgres.Sql } {
-  const url = opts.url ?? process.env.DATABASE_URL;
-  if (!url) throw new Error("DATABASE_URL no está definida");
+  const url = opts.url ?? databaseUrl();
+  if (!url) throw new Error("No hay URL de base de datos (DATABASE_URL / octopus_DATABASE_URL)");
   const client = postgres(url, {
     max: opts.max ?? 10,
     // Compatible con poolers en modo transacción (PgBouncer / Supavisor).
@@ -33,5 +53,5 @@ export function getDb(): Database {
 }
 
 export function isDbConfigured(): boolean {
-  return Boolean(process.env.DATABASE_URL);
+  return Boolean(databaseUrl());
 }

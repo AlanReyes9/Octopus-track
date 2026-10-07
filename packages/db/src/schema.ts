@@ -199,6 +199,17 @@ export const deviceCommands = pgTable("device_commands", {
   completedAt: ts("completed_at"),
 });
 
+export const commandTemplates = pgTable("command_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  protocol: text("protocol"),
+  type: text("type").notNull().default("custom"),
+  params: jsonb("params").$type<Record<string, string | number | boolean>>().notNull().default(sql`'{}'::jsonb`),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});
+
 export type Tenant = typeof tenants.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Device = typeof devices.$inferSelect;

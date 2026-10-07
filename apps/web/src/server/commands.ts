@@ -1,7 +1,7 @@
 import "server-only";
 import { and, desc, deviceCommands, deviceLastPositions, devices, eq, getDb } from "@octopus/db";
 import { createCommandStore, publisherFromEnv, type CommandStore, type LivePublisher } from "@octopus/ingest-core";
-import { ENGINE_STOP_MAX_SPEED_KMH, getCommand, type DeviceTransport } from "@octopus/telemetry";
+import { commandsFor, ENGINE_STOP_MAX_SPEED_KMH, getCommand, isTcpNative } from "@octopus/telemetry";
 import { HttpError } from "@/lib/api";
 import type { Session } from "@/lib/auth";
 
@@ -14,10 +14,9 @@ function services() {
   return g.__octopusCommands;
 }
 
-export function transportOf(d: { kind: string; protocol: string }): DeviceTransport | null {
-  if (d.kind === "phone") return "phone";
-  if (d.protocol === "gateway" || d.protocol === "tcp-text") return d.protocol;
-  return null; // osmand: protocolo solo de subida
+/** Protocolo efectivo para comandos (los teléfonos usan "phone"). */
+export function protocolOf(d: { kind: string; protocol: string }): string {
+  return d.kind === "phone" ? "phone" : d.protocol;
 }
 
 export async function listCommands(tenantId: string, deviceId: string, limit = 20) {
@@ -52,8 +51,8 @@ export async function enqueueCommand(
   if (!device) throw new HttpError(404, "Dispositivo no encontrado");
 
   const def = getCommand(type);
-  const transport = transportOf(device);
-  if (!def || !transport || !def.transports.includes(transport)) {
+  const protocol = protocolOf(device);
+  if (!def || !commandsFor(protocol).some((c) => c.type === type)) {
     throw new HttpError(400, "Este equipo no admite ese comando");
   }
 
@@ -96,13 +95,14 @@ export async function enqueueCommand(
     .returning();
 
   const { store, publisher } = services();
-  if (transport === "tcp-text") {
-    // El servicio de ingesta lo entrega si el equipo está conectado (o al reconectar).
+  if (isTcpNative(protocol)) {
+    // El servicio de ingesta TCP lo entrega si el equipo está conectado (o al reconectar).
     await publisher.notifyCommand(cmd!.id).catch(() => {});
-  } else if (transport === "gateway") {
-    await dispatchToGateway(store, cmd!.id, device.imei, type, params);
+  } else if (protocol !== "phone") {
+    // Gateway JSON y protocolos decodificados por un servidor externo.
+    await dispatchToGateway(store, cmd!.id, device.imei, protocol, type, params);
   }
-  // transport === "phone": el teléfono lo recoge en su siguiente reporte.
+  // Teléfono: lo recoge en su siguiente reporte.
   return cmd!;
 }
 
@@ -114,6 +114,7 @@ async function dispatchToGateway(
   store: CommandStore,
   id: string,
   imei: string,
+  protocol: string,
   type: string,
   params: Record<string, unknown>,
 ) {
@@ -129,7 +130,7 @@ async function dispatchToGateway(
         "content-type": "application/json",
         ...(process.env.COMMANDS_WEBHOOK_TOKEN ? { authorization: `Bearer ${process.env.COMMANDS_WEBHOOK_TOKEN}` } : {}),
       },
-      body: JSON.stringify({ id, imei, type, params }),
+      body: JSON.stringify({ id, imei, protocol, type, params }),
       signal: AbortSignal.timeout(8000),
     });
     if (res.ok) await store.mark(id, "sent", null);

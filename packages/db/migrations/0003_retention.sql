@@ -32,6 +32,6 @@ BEGIN
   IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
     PERFORM cron.schedule('octopus-retention', '30 0 * * *', 'SELECT public.octopus_apply_retention()');
   ELSE
-    RAISE WARNING 'pg_cron no disponible: ejecuta SELECT octopus_apply_retention() a diario.';
+    RAISE NOTICE 'pg_cron no disponible: la retención la ejecuta /api/cron/maintenance.';
   END IF;
 END $$;

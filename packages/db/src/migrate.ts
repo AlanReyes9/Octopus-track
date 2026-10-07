@@ -1,38 +1,15 @@
 /**
- * Aplica migrations/*.sql en orden, registrándolas en _migrations.
- * Uso: DATABASE_URL=... pnpm db:migrate
+ * Aplica las migraciones. Uso: DATABASE_URL=... pnpm db:migrate
  */
-import { readdir, readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import postgres from "postgres";
+import { databaseUrl, migrationUrl } from "./client";
+import { runMigrations } from "./migrator";
 
-const dir = join(dirname(fileURLToPath(import.meta.url)), "..", "migrations");
-
-async function main() {
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("DATABASE_URL no está definida");
-  const sql = postgres(url, { max: 1, onnotice: (n) => console.log(`[${n.severity}] ${n.message}`) });
-  try {
-    await sql`CREATE TABLE IF NOT EXISTS _migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`;
-    const applied = new Set((await sql<{ name: string }[]>`SELECT name FROM _migrations`).map((r) => r.name));
-    const files = (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort();
-    for (const file of files) {
-      if (applied.has(file)) continue;
-      const content = await readFile(join(dir, file), "utf8");
-      console.log(`→ aplicando ${file}`);
-      await sql.begin(async (tx) => {
-        await tx.unsafe(content);
-        await tx`INSERT INTO _migrations (name) VALUES (${file})`;
-      });
-    }
-    console.log("✓ migraciones al día");
-  } finally {
-    await sql.end();
-  }
+const url = migrationUrl() ?? databaseUrl();
+if (!url) {
+  console.error("No hay URL de base de datos");
+  process.exit(1);
 }
-
-main().catch((err) => {
+runMigrations(url).catch((err) => {
   console.error(err);
   process.exit(1);
 });

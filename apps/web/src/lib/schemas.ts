@@ -1,3 +1,4 @@
+import { ALL_PROTOCOLS } from "@octopus/telemetry";
 import { z } from "zod";
 
 export const vehicleSchema = z.object({
@@ -14,7 +15,10 @@ export const deviceSchema = z.object({
     .regex(/^[A-Za-z0-9_-]{1,32}$/, "IMEI / identificador inválido"),
   name: z.string().trim().min(1).max(100),
   kind: z.enum(["gps", "phone"]).default("gps"),
-  protocol: z.enum(["gateway", "osmand", "tcp-text"]).default("gateway"),
+  protocol: z
+    .string()
+    .refine((p) => ALL_PROTOCOLS.some((x) => x.id === p && x.id !== "phone"), "Protocolo no válido")
+    .default("gt06"),
   phone: z.string().trim().max(30).nullish(),
 });
 

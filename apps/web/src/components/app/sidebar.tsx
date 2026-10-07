@@ -3,6 +3,7 @@
 import {
   Car,
   ChevronsUpDown,
+  Network,
   Cpu,
   History,
   LayoutDashboard,
@@ -26,6 +27,7 @@ const NAV: { href: string; label: string; icon: typeof Car; manage?: boolean }[]
   { href: "/vehicles", label: "Vehículos", icon: Car, manage: true },
   { href: "/devices", label: "Dispositivos", icon: Cpu, manage: true },
   { href: "/users", label: "Usuarios", icon: Users, manage: true },
+  { href: "/protocols", label: "Protocolos", icon: Network, manage: true },
 ];
 
 const ROLE_LABEL: Record<Role, string> = { owner: "Propietario", admin: "Administrador", viewer: "Cliente" };
