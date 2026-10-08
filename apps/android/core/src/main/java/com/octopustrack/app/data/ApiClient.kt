@@ -103,7 +103,7 @@ class ApiClient(
             }
             // El token propio del modo rastreador (bearer explícito) no cierra la sesión del panel.
             if (kind == ApiErrorKind.Unauthorized && bearer == null && connection().token != null) onUnauthorized()
-            throw ApiException(r.code, message ?: defaultMessage(r.code), kind)
+            throw ApiException(r.code, message ?: defaultMessage(r.code, text), kind)
         }
     }
 
@@ -121,13 +121,19 @@ class ApiClient(
         execute("DELETE", path, emptyMap(), body?.let { AppJson.encodeToString(JsonObject.serializer(), it) })
     }
 
-    private fun defaultMessage(code: Int) = when (code) {
-        401 -> "Tu sesión ha caducado"
-        403 -> "No tienes permiso para esta acción"
-        404 -> "No se encontró lo solicitado"
-        429 -> "Demasiados intentos, espera unos minutos"
-        in 500..599 -> "El servidor tuvo un problema. Inténtalo de nuevo"
-        else -> "No se pudo completar la operación"
+    /** Incluye el código (y, si no es JSON, un trozo del cuerpo) para poder diagnosticar
+     *  respuestas inesperadas (redirecciones, bloqueos de red, proxies, etc.). */
+    private fun defaultMessage(code: Int, body: String): String {
+        val base = when (code) {
+            401 -> "Tu sesión ha caducado"
+            403 -> "No tienes permiso para esta acción"
+            404 -> "No se encontró lo solicitado"
+            429 -> "Demasiados intentos, espera unos minutos"
+            in 500..599 -> "El servidor tuvo un problema. Inténtalo de nuevo"
+            else -> "No se pudo completar la operación"
+        }
+        val hint = body.trim().take(80).replace(Regex("\\s+"), " ")
+        return if (hint.isEmpty()) "$base (código $code)" else "$base (código $code: $hint)"
     }
 }
 

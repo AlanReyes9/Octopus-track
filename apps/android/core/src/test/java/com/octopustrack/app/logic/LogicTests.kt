@@ -159,4 +159,16 @@ class ApiClientTests {
             try { client(s).get<com.octopustrack.app.data.PingResponse>("/x"); fail() } catch (e: ApiException) { assertEquals(ApiErrorKind.RateLimited, e.kind) }
         }
     }
+
+    /** Respuesta inesperada sin el formato {error}: el mensaje debe incluir el código para poder diagnosticarla. */
+    @Test fun unexpectedNonJsonResponseIncludesStatusCode() = runBlocking {
+        MockWebServer().use { s ->
+            s.enqueue(MockResponse().setResponseCode(405).setBody("Method Not Allowed"))
+            try { client(s).get<com.octopustrack.app.data.PingResponse>("/x"); fail() } catch (e: ApiException) {
+                assertEquals(ApiErrorKind.Client, e.kind)
+                assertTrue(e.message.contains("405"))
+                assertTrue(e.message.contains("Method Not Allowed"))
+            }
+        }
+    }
 }
