@@ -13,7 +13,12 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
   return (
     <HistoryViewer
       initialDeviceId={devices.some((d) => d.id === device) ? device : undefined}
-      devices={devices.map((d) => ({ id: d.id, label: d.plate ? `${d.vehicleName ?? d.name} · ${d.plate}` : (d.vehicleName ?? d.name) }))}
+      devices={devices.map((d) => ({
+        id: d.id,
+        label: d.plate ? `${d.vehicleName ?? d.name} · ${d.plate}` : (d.vehicleName ?? d.name),
+        icon: d.icon ?? (d.kind === "phone" ? "person" : "car"),
+        color: d.color ?? "#7c3aed",
+      }))}
     />
   );
 }

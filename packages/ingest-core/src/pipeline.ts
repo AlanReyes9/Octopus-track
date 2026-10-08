@@ -19,11 +19,25 @@ export interface GeofenceTransition {
   type: "enter" | "exit";
 }
 
+/** Cambio de estado del equipo detectado comparando con su última posición conocida. */
+export interface DeviceStateEvent {
+  type: "ignition_on" | "ignition_off" | "low_battery";
+  message: string;
+}
+
 export type ProcessResult =
   | { status: "stored"; device: DeviceRef; geofenceEvents: number }
   | { status: "duplicate"; device: DeviceRef }
   | { status: "unknown_device"; imei: string }
   | { status: "rejected"; reason: string };
+
+const LOW_BATTERY_PCT = 15;
+
+/** battery (0-100, teléfonos) o batteryLevel (0-100, la mayoría de protocolos GPS). */
+function batteryPct(attrs: Record<string, unknown>): number | null {
+  const v = attrs.battery ?? attrs.batteryLevel;
+  return typeof v === "number" && v >= 0 && v <= 100 ? v : null;
+}
 
 export interface PipelineOptions {
   db: Database;
@@ -34,6 +48,8 @@ export interface PipelineOptions {
   maxFutureSkewMs?: number;
   /** Se invoca tras guardar transiciones de geocerca (automatizaciones). */
   onGeofenceTransitions?: (device: DeviceRef, transitions: GeofenceTransition[], event: TelemetryEvent) => Promise<void>;
+  /** Se invoca tras guardar cambios de estado del equipo (apartado "Eventos"). */
+  onDeviceEvents?: (device: DeviceRef, events: DeviceStateEvent[]) => Promise<void>;
 }
 
 /**
@@ -89,6 +105,7 @@ export function createPipeline(opts: PipelineOptions) {
     const ts = event.timestamp.toISOString();
 
     const geofenceMessages: LiveMessage[] = [];
+    const stateEvents: DeviceStateEvent[] = [];
 
     const inserted = await db.transaction(async (tx) => {
       const ins = await tx.execute<{ time: Date }>(sql`
@@ -101,6 +118,12 @@ export function createPipeline(opts: PipelineOptions) {
         RETURNING time
       `);
       if (ins.length === 0) return false;
+
+      // Estado previo (antes del upsert) para detectar cambios: motor, batería.
+      const prevRows = await tx.execute<{ ignition: boolean | null; attributes: Record<string, unknown> }>(sql`
+        SELECT ignition, attributes FROM device_last_positions WHERE device_id = ${device.id}
+      `);
+      const prev = prevRows[0] ?? null;
 
       // Solo avanza la última posición si el fix es más reciente (tramas fuera de orden).
       const latest = await tx.execute<{ device_id: string }>(sql`
@@ -169,6 +192,26 @@ export function createPipeline(opts: PipelineOptions) {
           });
         }
       }
+
+      if (latest.length > 0 && prev) {
+        if (prev.ignition !== null && event.ignition !== null && prev.ignition !== event.ignition) {
+          stateEvents.push({
+            type: event.ignition ? "ignition_on" : "ignition_off",
+            message: `${device.name}: motor ${event.ignition ? "encendido" : "apagado"}`,
+          });
+        }
+        const bat = batteryPct(event.attributes);
+        const prevBat = batteryPct(prev.attributes ?? {});
+        if (bat !== null && bat <= LOW_BATTERY_PCT && (prevBat === null || prevBat > LOW_BATTERY_PCT)) {
+          stateEvents.push({ type: "low_battery", message: `${device.name}: batería baja (${bat}%)` });
+        }
+      }
+      for (const e of stateEvents) {
+        await tx.execute(sql`
+          INSERT INTO device_events (time, device_id, tenant_id, type, message, attributes)
+          VALUES (${ts}::timestamptz, ${device.id}, ${device.tenantId}, ${e.type}::device_event_type, ${e.message}, ${attrs}::jsonb)
+        `);
+      }
       return true;
     });
 
@@ -181,6 +224,10 @@ export function createPipeline(opts: PipelineOptions) {
       await opts.onGeofenceTransitions(device, transitions, event).catch((err) =>
         console.error("[pipeline] fallo en automatizaciones de geocerca:", err),
       );
+    }
+
+    if (stateEvents.length && opts.onDeviceEvents) {
+      await opts.onDeviceEvents(device, stateEvents).catch((err) => console.error("[pipeline] fallo notificando evento de equipo:", err));
     }
 
     const messages: LiveMessage[] = [

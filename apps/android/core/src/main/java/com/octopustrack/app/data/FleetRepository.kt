@@ -65,7 +65,20 @@ class FleetRepository(private val api: ApiClient, private val http: OkHttpClient
         runCatching { _geofences.value = api.get("/api/geofences") }
     }
 
+    /** Solo nombre y color: redibujar la forma se hace desde el panel web. */
+    suspend fun updateGeofence(id: String, name: String, color: String) {
+        api.execute("PATCH", "/api/geofences/$id", body = AppJson.encodeToString(GeofencePatch.serializer(), GeofencePatch(name, color)))
+        refreshGeofences()
+    }
+
+    suspend fun deleteGeofence(id: String) {
+        api.delete("/api/geofences/$id")
+        refreshGeofences()
+    }
+
     suspend fun events(): List<GeofenceEventDto> = api.get("/api/geofences/events")
+
+    suspend fun deviceEvents(): List<DeviceEventDto> = api.get("/api/device-events")
 
     suspend fun history(deviceId: String, fromIso: String, toIso: String): HistoryResponse =
         api.get("/api/positions/history", mapOf("deviceId" to deviceId, "from" to fromIso, "to" to toIso))

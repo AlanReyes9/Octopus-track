@@ -6,3 +6,4 @@ export * from "./automation";
 export * from "./notifications";
 export * from "./webpush";
 export * from "./fcm";
+export * from "./connectivity";

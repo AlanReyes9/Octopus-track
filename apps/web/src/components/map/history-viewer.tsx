@@ -26,7 +26,7 @@ export function HistoryViewer({
   devices,
   initialDeviceId,
 }: {
-  devices: { id: string; label: string }[];
+  devices: { id: string; label: string; icon: string; color: string }[];
   initialDeviceId?: string;
 }) {
   const { containerRef, map, lib } = useMap();
@@ -102,8 +102,14 @@ export function HistoryViewer({
     }
   }, [map, lib, data]);
 
-  // Marcador de reproducción.
+  // Marcador de reproducción: mismo icono y color que tiene la unidad en el mapa en vivo.
+  // Se recrea cuando cambia la unidad para que el icono nunca quede desactualizado.
   const current = data?.points[cursor];
+  const selectedDevice = devices.find((d) => d.id === deviceId);
+  useEffect(() => {
+    marker.current?.remove();
+    marker.current = null;
+  }, [deviceId]);
   useEffect(() => {
     if (!map || !lib) return;
     if (!current) {
@@ -112,13 +118,13 @@ export function HistoryViewer({
       return;
     }
     if (!marker.current) {
-      marker.current = new lib.Marker({ element: createVehicleMarkerElement("#db2777") })
+      marker.current = new lib.Marker({ element: createVehicleMarkerElement(selectedDevice?.color ?? "#7c3aed", selectedDevice?.icon) })
         .setLngLat([current.longitude, current.latitude])
         .addTo(map);
     }
     marker.current.setLngLat([current.longitude, current.latitude]);
     setMarkerCourse(marker.current.getElement(), current.course);
-  }, [map, lib, current]);
+  }, [map, lib, current, selectedDevice]);
 
   useEffect(() => {
     if (!playing || !data) return;

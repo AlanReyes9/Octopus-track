@@ -59,6 +59,8 @@ object Ic {
     val Warning = L.drawable.lucide_ic_triangle_alert
     val Plus = L.drawable.lucide_ic_plus
     val WifiOff = L.drawable.lucide_ic_wifi_off
+    val Wifi = L.drawable.lucide_ic_wifi
+    val BatteryWarning = L.drawable.lucide_ic_battery_warning
     val Refresh = L.drawable.lucide_ic_refresh_cw
     val Copy = L.drawable.lucide_ic_copy
     val Key = L.drawable.lucide_ic_key_round
@@ -71,6 +73,7 @@ object Ic {
     val Message = L.drawable.lucide_ic_message_square
     val MoonStar = L.drawable.lucide_ic_moon_star
     val Trash = L.drawable.lucide_ic_trash_2
+    val Pencil = L.drawable.lucide_ic_pencil
     val Shapes = L.drawable.lucide_ic_shapes
     val Smartphone = L.drawable.lucide_ic_smartphone
     val Activity = L.drawable.lucide_ic_activity

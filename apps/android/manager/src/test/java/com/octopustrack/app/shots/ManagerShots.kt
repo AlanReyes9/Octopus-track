@@ -32,6 +32,7 @@ import com.octopustrack.app.ui.home.GeofencesScreen
 import com.octopustrack.app.ui.home.LivePanel
 import com.octopustrack.app.ui.home.Section
 import com.octopustrack.app.ui.home.SidebarHeader
+import com.octopustrack.app.ui.home.DeviceEventsScreen
 import com.octopustrack.app.ui.home.UnitsScreen
 import com.octopustrack.app.ui.map.UnitSheet
 import com.octopustrack.app.ui.theme.OctopusTheme
@@ -73,7 +74,7 @@ class ManagerShots {
 
     @Test fun unitSheet() = shot("unit_sheet") {
         Box(Modifier.fillMaxSize().background(Color(0xFFE8E4F5))) {
-            UnitSheet(SAMPLE_UNITS[0], true, true, {}, {}, {}, {}, {}, {}, Modifier.align(Alignment.BottomCenter), now = NOW)
+            UnitSheet(SAMPLE_UNITS[0], true, {}, {}, {}, {}, {}, {}, Modifier.align(Alignment.BottomCenter), now = NOW)
         }
     }
 
@@ -89,4 +90,15 @@ class ManagerShots {
     }
 
     @Test fun geofences() = shot("geofences") { GeofencesScreen(emptyList(), SAMPLE_EVENTS, today = java.time.LocalDate.of(2026, 10, 8)) }
+
+    @Test fun deviceEvents() = shot("device_events") {
+        DeviceEventsScreen(
+            listOf(
+                com.octopustrack.app.data.DeviceEventDto(NOW.minusSeconds(60).toString(), "ignition_on", "Camión 12: motor encendido", "1", "Camión 12"),
+                com.octopustrack.app.data.DeviceEventDto(NOW.minusSeconds(900).toString(), "low_battery", "Ana (teléfono): batería baja (12%)", "3", "Ana (teléfono)"),
+                com.octopustrack.app.data.DeviceEventDto(NOW.minusSeconds(4000).toString(), "offline", "Taxi 3: se perdió la conexión", "4", "Taxi 3"),
+            ),
+            null,
+        )
+    }
 }

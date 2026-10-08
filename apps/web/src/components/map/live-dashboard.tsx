@@ -35,7 +35,7 @@ import { createVehicleMarkerElement, setMarkerCourse } from "./vehicle-marker";
 
 const TRAIL_POINTS = 120;
 
-export function LiveDashboard({ canManage }: { canManage: boolean }) {
+export function LiveDashboard() {
   const { containerRef, map, lib } = useMap();
   const { positions, alerts, mode, loaded } = useLivePositions();
   const markers = useRef(new Map<string, { marker: Marker; el: HTMLDivElement }>());
@@ -292,18 +292,16 @@ export function LiveDashboard({ canManage }: { canManage: boolean }) {
                     <Navigation /> Cómo llegar
                   </a>
                 </Button>
-                {canManage && (
-                  <Button size="sm" variant="secondary" className="col-span-2" onClick={() => setCommandsOpen(true)}>
-                    <Send /> Enviar comando
-                  </Button>
-                )}
+                <Button size="sm" variant="secondary" className="col-span-2" onClick={() => setCommandsOpen(true)}>
+                  <Send /> Enviar comando
+                </Button>
               </div>
             </div>
           </div>
         )}
       </div>
 
-      {current && canManage && (
+      {current && (
         <CommandsDialog
           open={commandsOpen}
           onOpenChange={setCommandsOpen}

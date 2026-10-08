@@ -6,7 +6,9 @@ import {
   createNotifier,
   createFcmSender,
   createPipeline,
+  detectConnectivityChanges,
   fcmFromEnv,
+  insertConnectivityEvents,
   publisherFromEnv,
   vapidFromEnv,
   type CommandStore,
@@ -36,6 +38,16 @@ export function services(): Services {
       db,
       publisher,
       onGeofenceTransitions: createAutomation({ db, commands, notifier }),
+      onDeviceEvents: async (device, events) => {
+        for (const e of events) {
+          await notifier.notifyDevice(device.tenantId, device.id, {
+            title: e.message,
+            body: "Toca para ver la unidad en el mapa",
+            url: `/dashboard?device=${device.id}`,
+            tag: `ev-${device.id}-${e.type}`,
+          });
+        }
+      },
     });
     g.__octopusServices = { publisher, commands, notifier, pipeline };
   }
@@ -45,4 +57,26 @@ export function services(): Services {
 /** Pipeline compartido para los webhooks de ingesta servidos desde Vercel. */
 export function getPipeline(): Pipeline {
   return services().pipeline;
+}
+
+/**
+ * Detecta equipos que dejaron de reportar (o que volvieron) y notifica.
+ * La llama el cron de mantenimiento; si además corre apps/ingest por separado,
+ * ese proceso la llama con más frecuencia (no son excluyentes).
+ */
+export async function checkConnectivity(): Promise<number> {
+  const { notifier } = services();
+  const db = getDb();
+  const events = await detectConnectivityChanges(db);
+  if (events.length === 0) return 0;
+  await insertConnectivityEvents(db, events);
+  for (const e of events) {
+    await notifier.notifyDevice(e.tenantId, e.deviceId, {
+      title: e.message,
+      body: "Toca para ver la unidad en el mapa",
+      url: `/dashboard?device=${e.deviceId}`,
+      tag: `ev-${e.deviceId}-${e.type}`,
+    });
+  }
+  return events.length;
 }

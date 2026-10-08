@@ -44,6 +44,38 @@ export async function createGeofence(tenantId: string, input: { name: string; co
   return rows[0]?.id ?? null;
 }
 
+/** Edición parcial: nombre, color y/o forma (ring). Si se manda ring, se revalida como en la creación. */
+export async function updateGeofence(
+  tenantId: string,
+  id: string,
+  input: { name?: string; color?: string; ring?: [number, number][] },
+) {
+  if (input.ring) {
+    const ring = [...input.ring];
+    const first = ring[0]!;
+    const last = ring.at(-1)!;
+    if (first[0] !== last[0] || first[1] !== last[1]) ring.push(first);
+    const geojson = JSON.stringify({ type: "Polygon", coordinates: [ring] });
+    const rows = await getDb().execute<{ id: string }>(sql`
+      WITH g AS (SELECT ST_SetSRID(ST_GeomFromGeoJSON(${geojson}), 4326) AS geom)
+      UPDATE geofences SET
+        area = (SELECT geom::geography FROM g WHERE ST_IsValid(geom)),
+        name = COALESCE(${input.name ?? null}, name),
+        color = COALESCE(${input.color ?? null}, color)
+      WHERE id = ${id} AND tenant_id = ${tenantId} AND EXISTS (SELECT 1 FROM g WHERE ST_IsValid(geom))
+      RETURNING id
+    `);
+    return rows.length > 0;
+  }
+  if (input.name === undefined && input.color === undefined) return true;
+  const rows = await getDb().execute<{ id: string }>(sql`
+    UPDATE geofences SET name = COALESCE(${input.name ?? null}, name), color = COALESCE(${input.color ?? null}, color)
+    WHERE id = ${id} AND tenant_id = ${tenantId}
+    RETURNING id
+  `);
+  return rows.length > 0;
+}
+
 export async function deleteGeofence(tenantId: string, id: string) {
   const rows = await getDb().execute(sql`
     DELETE FROM geofences WHERE id = ${id} AND tenant_id = ${tenantId} RETURNING id

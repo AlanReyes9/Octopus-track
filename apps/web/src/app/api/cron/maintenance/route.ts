@@ -1,5 +1,6 @@
 import { getDb, sql } from "@octopus/db";
 import { json } from "@/lib/api";
+import { checkConnectivity } from "@/lib/ingest";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,11 @@ export async function GET(req: Request) {
     } catch (err) {
       results[name] = (err as { cause?: { message?: string } }).cause?.message ?? (err as Error).message;
     }
+  }
+  try {
+    results.connectivity = `${await checkConnectivity()} evento(s)`;
+  } catch (err) {
+    results.connectivity = (err as { cause?: { message?: string } }).cause?.message ?? (err as Error).message;
   }
   return json({ ok: true, results });
 }

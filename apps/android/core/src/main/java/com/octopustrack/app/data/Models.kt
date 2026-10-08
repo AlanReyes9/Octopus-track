@@ -85,6 +85,9 @@ data class GeofenceDto(
 )
 
 @Serializable
+data class GeofencePatch(val name: String? = null, val color: String? = null)
+
+@Serializable
 data class GeofenceEventDto(
     val time: String,
     val type: String,
@@ -92,6 +95,16 @@ data class GeofenceEventDto(
     val longitude: Double = 0.0,
     val geofenceName: String = "",
     val color: String = "#f97316",
+    val unit: String = "",
+)
+
+/** Cambio de estado del equipo: motor, conexión, batería. */
+@Serializable
+data class DeviceEventDto(
+    val time: String,
+    val type: String,
+    val message: String = "",
+    val deviceId: String = "",
     val unit: String = "",
 )
 

@@ -117,7 +117,7 @@ fun LiveScreen(
             FleetMap(units, geofences, selectedId, follow, { onSelect(it); if (it != null) follow = true }, onUserGesture = { follow = false }, Modifier.fillMaxSize())
             if (selected != null) {
                 UnitSheet(
-                    selected, canManage, follow,
+                    selected, follow,
                     onClose = { onSelect(null) },
                     onFollow = { follow = !follow },
                     onOpenMaps = { openInMaps(context, selected) },
@@ -143,7 +143,6 @@ fun openInMaps(context: Context, u: FleetUnit) {
 @Composable
 fun UnitSheet(
     u: FleetUnit,
-    canManage: Boolean,
     follow: Boolean,
     onClose: () -> Unit,
     onFollow: () -> Unit,
@@ -190,7 +189,7 @@ fun UnitSheet(
                 BrandButton("Google Maps", onOpenMaps, Modifier.weight(1f), kind = ButtonKind.Outline, icon = Ic.ExternalLink, enabled = u.hasPosition, height = 42.dp)
                 BrandButton("Cómo llegar", onNavigate, Modifier.weight(1f), kind = ButtonKind.Outline, icon = Ic.Navigation, enabled = u.hasPosition, height = 42.dp)
             }
-            if (canManage) BrandButton("Enviar comando", onCommands, Modifier.fillMaxWidth(), kind = ButtonKind.Secondary, icon = Ic.Send, height = 42.dp)
+            BrandButton("Enviar comando", onCommands, Modifier.fillMaxWidth(), kind = ButtonKind.Secondary, icon = Ic.Send, height = 42.dp)
         }
     }
 }
@@ -211,6 +210,9 @@ private fun FleetMap(
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     var style by remember { mutableStateOf<Style?>(null) }
     var fitted by remember { mutableStateOf(false) }
+    // Qué iconos ya se registraron en el estilo: no depender de Style.getImage()
+    // (su caché interna no siempre refleja lo añadido en tiempo de ejecución).
+    val knownImages = remember { mutableSetOf<String>() }
     val currentOnSelect by rememberUpdatedStateCompat(onSelect)
     val currentOnGesture by rememberUpdatedStateCompat(onUserGesture)
 
@@ -261,6 +263,7 @@ private fun FleetMap(
                     PropertyFactory.textHaloWidth(1.6f),
                     PropertyFactory.textOptional(true),
                 ))
+                knownImages.clear()
                 style = s
             }
             m.addOnMapClickListener { ll ->
@@ -288,7 +291,7 @@ private fun FleetMap(
             val offline = st == UnitStatus.Offline
             val sel = u.id == selectedId
             val imgId = MarkerImages.markerId(u.icon, if (offline) "off" else u.color, sel)
-            if (s.getImage(imgId) == null) s.addImage(imgId, MarkerImages.marker(context, u.icon, u.color, sel, offline))
+            if (knownImages.add(imgId)) s.addImage(imgId, MarkerImages.marker(context, u.icon, u.color, sel, offline))
             Feature.fromGeometry(Point.fromLngLat(u.longitude!!, u.latitude!!)).also {
                 it.addStringProperty("id", u.id)
                 it.addStringProperty("img", imgId)

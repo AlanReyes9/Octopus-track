@@ -10,13 +10,10 @@ const schema = z.object({
   params: z.record(z.string(), z.union([z.string().max(200), z.number(), z.boolean()])).default({}),
 });
 
-export const GET = withAuth(async (_req, { session }) => json(await listTemplates(session.tenantId)), { manage: true });
+export const GET = withAuth(async (_req, { session }) => json(await listTemplates(session.tenantId)));
 
-export const POST = withAuth(
-  async (req, { session }) => {
-    const input = await parseBody(req, schema);
-    if (!getCommand(input.type)) throw new HttpError(400, "Tipo de comando desconocido");
-    return json(await createTemplate(session.tenantId, session.userId, { ...input, protocol: input.protocol ?? null }), 201);
-  },
-  { manage: true },
-);
+export const POST = withAuth(async (req, { session }) => {
+  const input = await parseBody(req, schema);
+  if (!getCommand(input.type)) throw new HttpError(400, "Tipo de comando desconocido");
+  return json(await createTemplate(session.tenantId, session.userId, { ...input, protocol: input.protocol ?? null }), 201);
+});

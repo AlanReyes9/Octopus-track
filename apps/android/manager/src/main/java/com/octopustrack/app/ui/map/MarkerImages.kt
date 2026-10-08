@@ -32,11 +32,15 @@ object MarkerImages {
             this.color = 0xFF4C1D95.toInt(); style = Paint.Style.STROKE; strokeWidth = 4f
         })
         c.drawCircle(cx, cx, r, fill)
-        ContextCompat.getDrawable(context, unitIconRes(icon))?.mutate()?.let { d ->
-            d.setTint(0xFFFFFFFF.toInt())
-            val s = (r * 1.15f).toInt()
-            val icon = d.toBitmap(s, s)
-            c.drawBitmap(icon, cx - s / 2f, cx - s / 2f, null)
+        // Nunca debe quedar un círculo vacío por un fallo al cargar/teñir el drawable:
+        // si algo falla, se deja el círculo de color (visible) sin el glifo encima.
+        runCatching {
+            ContextCompat.getDrawable(context, unitIconRes(icon))?.mutate()?.let { d ->
+                d.setTint(0xFFFFFFFF.toInt())
+                val s = (r * 1.15f).toInt()
+                val glyph = d.toBitmap(s, s)
+                c.drawBitmap(glyph, cx - s / 2f, cx - s / 2f, null)
+            }
         }
         return bmp
     }

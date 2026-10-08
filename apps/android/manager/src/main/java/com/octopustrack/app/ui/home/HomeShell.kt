@@ -46,6 +46,7 @@ enum class Section(val label: String, @DrawableRes val icon: Int, val manage: Bo
     Live("Mapa en vivo", Ic.Dashboard),
     History("Historial", Ic.History),
     Geofences("Geocercas", Ic.Shapes),
+    Events("Eventos", Ic.Bell),
     Devices("Dispositivos", Ic.Cpu, manage = true, webPath = "/devices"),
     Users("Usuarios", Ic.Users, manage = true, webPath = "/users"),
     Protocols("Protocolos", Ic.Network, manage = true, webPath = "/protocols"),

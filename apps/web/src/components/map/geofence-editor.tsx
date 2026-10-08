@@ -2,7 +2,7 @@
 
 import type { Feature } from "geojson";
 import type { GeoJSONSource, MapMouseEvent } from "maplibre-gl";
-import { Trash2, Undo2, Zap } from "lucide-react";
+import { Pencil, Trash2, Undo2, Zap } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,7 @@ export function GeofenceEditor({ canManage }: { canManage: boolean }) {
   const [color, setColor] = useState("#f97316");
   const [error, setError] = useState<string | null>(null);
   const [rulesFor, setRulesFor] = useState<{ id: string; name: string } | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const drawingRef = useRef(drawing);
   drawingRef.current = drawing;
 
@@ -101,13 +102,34 @@ export function GeofenceEditor({ canManage }: { canManage: boolean }) {
     map.getCanvas().style.cursor = drawing ? "crosshair" : "";
   }, [map, ring, drawing]);
 
+  function startEdit(g: Geofence) {
+    setEditingId(g.id);
+    setName(g.name);
+    setColor(g.color);
+    // El último punto del anillo repite el primero (polígono cerrado); se quita para poder seguir editando vértices.
+    const coords = g.geometry.coordinates[0] ?? [];
+    setRing(coords.slice(0, -1) as [number, number][]);
+    setDrawing(true);
+    setError(null);
+  }
+
+  function cancelDraw() {
+    setDrawing(false);
+    setEditingId(null);
+    setRing([]);
+    setName("");
+    setColor("#f97316");
+  }
+
   async function save() {
     setError(null);
     try {
-      await api("/api/geofences", { method: "POST", json: { name, color, ring } });
-      setRing([]);
-      setName("");
-      setDrawing(false);
+      if (editingId) {
+        await api(`/api/geofences/${editingId}`, { method: "PATCH", json: { name, color, ring } });
+      } else {
+        await api("/api/geofences", { method: "POST", json: { name, color, ring } });
+      }
+      cancelDraw();
       await reload();
     } catch (err) {
       setError((err as Error).message);
@@ -117,6 +139,7 @@ export function GeofenceEditor({ canManage }: { canManage: boolean }) {
   async function remove(id: string) {
     if (!confirm("¿Eliminar la geocerca y sus eventos?")) return;
     await api(`/api/geofences/${id}`, { method: "DELETE" }).catch((err) => alert(err.message));
+    if (editingId === id) cancelDraw();
     await reload();
   }
 
@@ -148,6 +171,7 @@ export function GeofenceEditor({ canManage }: { canManage: boolean }) {
             ) : (
               <>
                 <p className="text-xs text-muted-foreground">
+                  {editingId ? "Editando: " : ""}
                   Haz clic en el mapa para añadir vértices ({ring.length}). Mínimo 3.
                 </p>
                 <div className="grid gap-1.5">
@@ -169,18 +193,11 @@ export function GeofenceEditor({ canManage }: { canManage: boolean }) {
                   <Button size="sm" variant="outline" onClick={() => setRing((r) => r.slice(0, -1))} disabled={!ring.length}>
                     <Undo2 /> Deshacer
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      setDrawing(false);
-                      setRing([]);
-                    }}
-                  >
+                  <Button size="sm" variant="ghost" onClick={cancelDraw}>
                     Cancelar
                   </Button>
                   <Button size="sm" onClick={save} disabled={ring.length < 3 || !name.trim()}>
-                    Guardar
+                    {editingId ? "Guardar cambios" : "Guardar"}
                   </Button>
                 </div>
               </>
@@ -201,6 +218,9 @@ export function GeofenceEditor({ canManage }: { canManage: boolean }) {
                 <>
                   <Button size="icon" variant="ghost" className="size-7" onClick={() => setRulesFor(g)} title="Acciones">
                     <Zap className="text-violet-600" />
+                  </Button>
+                  <Button size="icon" variant="ghost" className="size-7" onClick={() => startEdit(g)} title="Editar">
+                    <Pencil className="text-muted-foreground" />
                   </Button>
                   <Button size="icon" variant="ghost" className="size-7" onClick={() => remove(g.id)} title="Eliminar">
                     <Trash2 className="text-destructive" />

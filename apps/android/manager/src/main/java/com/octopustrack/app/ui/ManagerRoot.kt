@@ -38,6 +38,7 @@ import com.octopustrack.app.ui.auth.WelcomeScreen
 import com.octopustrack.app.ui.brand.OctopusLogo
 import com.octopustrack.app.ui.commands.CommandsRoute
 import com.octopustrack.app.ui.history.HistoryRoute
+import com.octopustrack.app.ui.home.DeviceEventsScreen
 import com.octopustrack.app.ui.home.GeofencesScreen
 import com.octopustrack.app.ui.home.HistoryPickerScreen
 import com.octopustrack.app.ui.home.Section
@@ -117,6 +118,8 @@ private fun HomeRoute(container: ManagerContainer, state: AuthState.LoggedIn, op
     val geofences by container.fleet.geofences.collectAsState()
     val alerts = remember { mutableStateListOf<LiveAlert>() }
     var events by remember { mutableStateOf<List<GeofenceEventDto>?>(null) }
+    var deviceEvents by remember { mutableStateOf<List<com.octopustrack.app.data.DeviceEventDto>?>(null) }
+    var deviceEventsError by remember { mutableStateOf<String?>(null) }
 
     var section by remember { mutableStateOf(Section.Live) }
     var selectedId by remember { mutableStateOf<String?>(null) }
@@ -133,6 +136,12 @@ private fun HomeRoute(container: ManagerContainer, state: AuthState.LoggedIn, op
         container.fleet.runLive(user.canManage)
     }
     LaunchedEffect(section) { if (section == Section.Geofences) events = runCatching { container.fleet.events() }.getOrNull().also { if (it == null) events = emptyList() } }
+    LaunchedEffect(section) {
+        if (section == Section.Events) {
+            try { deviceEvents = container.fleet.deviceEvents(); deviceEventsError = null }
+            catch (e: ApiException) { deviceEventsError = e.message }
+        }
+    }
     LaunchedEffect(openUnit) { if (openUnit != null) { section = Section.Live; selectedId = openUnit; consumeUnit() } }
 
     val histUnit = units.firstOrNull { it.id == historyUnit }
@@ -160,7 +169,12 @@ private fun HomeRoute(container: ManagerContainer, state: AuthState.LoggedIn, op
             when (section) {
                 Section.Live -> LiveScreen(units, alerts, geofences, mode, loaded, selectedId, { selectedId = it }, user.canManage, { historyUnit = it.id }, { commandsUnit = it.id })
                 Section.History -> HistoryPickerScreen(units, loaded, user.canManage, { historyUnit = it.id })
-                Section.Geofences -> GeofencesScreen(geofences, events)
+                Section.Geofences -> GeofencesScreen(
+                    geofences, events, canManage = user.canManage,
+                    onEdit = { g, name, color -> scope.launch { runCatching { container.fleet.updateGeofence(g.id, name, color) } } },
+                    onDelete = { g -> scope.launch { runCatching { container.fleet.deleteGeofence(g.id) } } },
+                )
+                Section.Events -> DeviceEventsScreen(deviceEvents, deviceEventsError)
                 Section.Devices, Section.Users, Section.Protocols -> WebOnlyScreen(
                     section,
                     when (section) {

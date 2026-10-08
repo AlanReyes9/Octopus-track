@@ -6,7 +6,9 @@ import {
   createNotifier,
   createFcmSender,
   createPipeline,
+  detectConnectivityChanges,
   fcmFromEnv,
+  insertConnectivityEvents,
   publisherFromEnv,
   vapidFromEnv,
 } from "@octopus/ingest-core";
@@ -34,7 +36,38 @@ const pipeline = createPipeline({
   db,
   publisher,
   onGeofenceTransitions: createAutomation({ db, commands, notifier }),
+  onDeviceEvents: async (device, events) => {
+    for (const e of events) {
+      await notifier.notifyDevice(device.tenantId, device.id, {
+        title: e.message,
+        body: "Toca para ver la unidad en el mapa",
+        url: `/dashboard?device=${device.id}`,
+        tag: `ev-${device.id}-${e.type}`,
+      });
+    }
+  },
 });
+
+// Este proceso está siempre corriendo (a diferencia de los endpoints serverless
+// de la web), así que es la mejor fuente para detectar equipos que dejaron de
+// reportar sin esperar al cron diario. No estorba si el cron también lo hace.
+const connectivityInterval = setInterval(async () => {
+  try {
+    const events = await detectConnectivityChanges(db);
+    if (events.length === 0) return;
+    await insertConnectivityEvents(db, events);
+    for (const e of events) {
+      await notifier.notifyDevice(e.tenantId, e.deviceId, {
+        title: e.message,
+        body: "Toca para ver la unidad en el mapa",
+        url: `/dashboard?device=${e.deviceId}`,
+        tag: `ev-${e.deviceId}-${e.type}`,
+      });
+    }
+  } catch (err) {
+    console.error("[connectivity]", err);
+  }
+}, 2 * 60_000);
 
 const http = buildHttpServer(pipeline, db, { ingestToken: process.env.INGEST_TOKEN });
 // Puerto principal con detección automática del protocolo + puertos dedicados
@@ -74,6 +107,7 @@ for (const d of dedicated) {
 
 async function shutdown() {
   console.log("cerrando ingesta…");
+  clearInterval(connectivityInterval);
   tcp.server.close();
   dedicated.forEach((d) => d.srv.server.close());
   sub?.disconnect();
