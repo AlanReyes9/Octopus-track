@@ -139,7 +139,31 @@ class ApiClientTests {
             s.enqueue(MockResponse().setBody("""{"app":"octopus-track","api":1,"push":false}"""))
             val r: com.octopustrack.app.data.PingResponse = client(s).get("/api/mobile/ping")
             assertEquals("octopus-track", r.app)
-            assertEquals("Bearer tok", s.takeRequest().getHeader("Authorization"))
+            val req = s.takeRequest()
+            assertEquals("GET", req.method)
+            assertEquals("Bearer tok", req.getHeader("Authorization"))
+        }
+    }
+
+    /** Regresión: el método/cuerpo reales que OkHttp manda, no solo el status que devuelve el
+     *  mock (que no valida el método). El bug real era que post()/delete() siempre salían
+     *  como GET sin cuerpo porque el builder interno tenía un parámetro llamado "build",
+     *  que chocaba con Request.Builder.build() y nunca se ejecutaba de verdad. */
+    @Test fun postSendsPostMethodAndBody() = runBlocking {
+        MockWebServer().use { s ->
+            s.enqueue(MockResponse().setBody("""{"app":"x","api":1}"""))
+            client(s).post<Map<String, String>, com.octopustrack.app.data.PingResponse>("/x", mapOf("a" to "b"))
+            val req = s.takeRequest()
+            assertEquals("POST", req.method)
+            assertEquals("""{"a":"b"}""", req.body.readUtf8())
+        }
+    }
+
+    @Test fun deleteSendsDeleteMethod() = runBlocking {
+        MockWebServer().use { s ->
+            s.enqueue(MockResponse().setResponseCode(200))
+            client(s).delete("/x")
+            assertEquals("DELETE", s.takeRequest().method)
         }
     }
 

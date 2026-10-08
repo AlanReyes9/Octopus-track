@@ -60,13 +60,17 @@ class ApiClient(
         return builder.build()
     }
 
-    private fun request(path: String, query: Map<String, String?>, bearer: String?, build: Request.Builder.() -> Unit): Request =
+    // El parámetro NO puede llamarse "build": dentro del .apply (receptor Request.Builder),
+    // una llamada "build()" se resolvería al método build() de Request.Builder (que cierra el
+    // builder y descarta el resultado) en vez de invocar este lambda — y el método/cuerpo
+    // (GET/POST/DELETE) nunca se aplicaría, quedando siempre en el GET por defecto de OkHttp.
+    private fun request(path: String, query: Map<String, String?>, bearer: String?, configure: Request.Builder.() -> Unit): Request =
         Request.Builder().url(url(path, query)).apply {
             header("Accept", "application/json")
             header("User-Agent", "OctopusTrack-Android")
             val token = bearer ?: connection().token
             if (token != null) header("Authorization", "Bearer $token")
-            build()
+            configure()
         }.build()
 
     suspend fun execute(
