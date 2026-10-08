@@ -21,11 +21,17 @@ jobs:
           java-version: "17"
       - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v4
-      - name: Pruebas unitarias
-        run: ./gradlew :app:testDebugUnitTest
-      - name: APK de depuración
-        run: ./gradlew :app:assembleDebug
+      - name: Pruebas unitarias (lógica compartida)
+        run: ./gradlew :core:testDebugUnitTest
+      - name: APK de depuración — Cliente (comparte ubicación)
+        run: ./gradlew :client:assembleDebug
+      - name: APK de depuración — Manager (panel)
+        run: ./gradlew :manager:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: octopus-track-debug-apk
-          path: apps/android/app/build/outputs/apk/debug/*.apk
+          name: octopus-track-client-debug-apk
+          path: apps/android/client/build/outputs/apk/debug/*.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: octopus-manager-debug-apk
+          path: apps/android/manager/build/outputs/apk/debug/*.apk
