@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Octopus Track</string>
+    <string name="channel_tracking">Compartir ubicación</string>
+    <string name="channel_tracking_desc">Aviso permanente mientras compartes tu ubicación con tu empresa.</string>
+    <string name="channel_alerts">Alertas de geocerca</string>
+    <string name="channel_alerts_desc">Avisos cuando una unidad entra o sale de una zona.</string>
+    <string name="channel_messages">Mensajes de tu empresa</string>
+    <string name="channel_messages_desc">Mensajes enviados desde el panel de control.</string>
+</resources>

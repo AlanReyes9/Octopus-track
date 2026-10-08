@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <group android:translateX="22" android:translateY="22">
+        <path android:pathData="M21 35c-3.5 4.5-8.5 6.5-12.5 4.2" android:strokeWidth="4.6" android:strokeLineCap="round" android:strokeLineJoin="round" android:strokeColor="#000000" />
+        <path android:pathData="M25.5 37.5c-.6 6.2-3.6 10.6-8.3 12.4" android:strokeWidth="4.6" android:strokeLineCap="round" android:strokeLineJoin="round" android:strokeColor="#000000" />
+        <path android:pathData="M32 38.5v13.2c0 2.9 2.2 4.6 4.6 3.6" android:strokeWidth="4.6" android:strokeLineCap="round" android:strokeLineJoin="round" android:strokeColor="#000000" />
+        <path android:pathData="M38.5 37.5c.6 6.2 3.6 10.6 8.3 12.4" android:strokeWidth="4.6" android:strokeLineCap="round" android:strokeLineJoin="round" android:strokeColor="#000000" />
+        <path android:pathData="M43 35c3.5 4.5 8.5 6.5 12.5 4.2" android:strokeWidth="4.6" android:strokeLineCap="round" android:strokeLineJoin="round" android:strokeColor="#000000" />
+        <path android:pathData="M32 5C22 5 14 12.7 14 22.6c0 6.6 3.4 11.3 7 14.4.9.8 2 1.2 3.2 1.2h15.6c1.2 0 2.3-.4 3.2-1.2 3.6-3.1 7-7.8 7-14.4C50 12.7 42 5 32 5Z M21.8,22a4,4 0 1,0 8,0a4,4 0 1,0 -8,0 M34.2,22a4,4 0 1,0 8,0a4,4 0 1,0 -8,0" android:fillColor="#000000" android:fillType="evenOdd" />
+    </group>
+</vector>

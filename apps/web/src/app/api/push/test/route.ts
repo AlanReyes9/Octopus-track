@@ -4,7 +4,7 @@ import { services } from "@/lib/ingest";
 /** Envía una notificación de prueba a los navegadores del usuario. */
 export const POST = withAuth(async (_req, { session }) => {
   const { notifier } = services();
-  if (!notifier.enabled) throw new HttpError(503, "Las notificaciones push no están configuradas (VAPID)");
+  if (!notifier.enabled) throw new HttpError(503, "Las notificaciones push no están configuradas (VAPID o FCM)");
   const sent = await notifier.notifyUser(session.userId, session.tenantId, {
     title: "Octopus Track",
     body: "Las notificaciones están activas en este dispositivo.",

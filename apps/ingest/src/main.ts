@@ -4,7 +4,9 @@ import {
   createAutomation,
   createCommandStore,
   createNotifier,
+  createFcmSender,
   createPipeline,
+  fcmFromEnv,
   publisherFromEnv,
   vapidFromEnv,
 } from "@octopus/ingest-core";
@@ -26,7 +28,8 @@ const commands = createCommandStore(db, publisher, {
     await publisher.notifyCommand(id).catch(() => {});
   },
 });
-const notifier = createNotifier(db, vapidFromEnv());
+const fcmConfig = fcmFromEnv();
+const notifier = createNotifier(db, { vapid: vapidFromEnv(), fcm: fcmConfig ? createFcmSender(fcmConfig) : null });
 const pipeline = createPipeline({
   db,
   publisher,

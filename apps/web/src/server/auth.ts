@@ -2,16 +2,21 @@ import "server-only";
 import bcrypt from "bcryptjs";
 import { and, eq, getDb, memberships, sql, tenants, users, type MembershipRole } from "@octopus/db";
 
-export async function verifyCredentials(email: string, password: string) {
+// Hash de relleno: se compara siempre, exista o no el usuario, para no revelar
+// qué correos están registrados por el tiempo de respuesta.
+const DUMMY_HASH = bcrypt.hashSync("relleno-no-valido", 10);
+
+export async function verifyCredentials(email: string, password: string, preferredTenantId?: string) {
   const db = getDb();
   const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1);
-  if (!user || !(await bcrypt.compare(password, user.passwordHash))) return null;
-  const [membership] = await db
+  const ok = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
+  if (!user || !ok) return null;
+  const rows = await db
     .select({ tenantId: memberships.tenantId, role: memberships.role })
     .from(memberships)
     .where(eq(memberships.userId, user.id))
-    .orderBy(memberships.createdAt)
-    .limit(1);
+    .orderBy(memberships.createdAt);
+  const membership = rows.find((m) => m.tenantId === preferredTenantId) ?? rows[0];
   if (!membership) return null;
   return { user, membership };
 }
