@@ -110,7 +110,11 @@ fun OctopusTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composabl
             colorScheme = if (darkTheme) DarkScheme else LightScheme,
             typography = OctopusTypography,
             shapes = OctopusShapes,
-            content = content,
-        )
+        ) {
+            CompositionLocalProvider(
+                androidx.compose.material3.LocalContentColor provides MaterialTheme.colorScheme.onSurface,
+                content = content,
+            )
+        }
     }
 }
