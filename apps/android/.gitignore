@@ -1,0 +1,13 @@
+*.iml
+.gradle/
+build/
+local.properties
+.idea/
+captures/
+.externalNativeBuild/
+.cxx/
+*.keystore
+*.jks
+keystore.properties
+# Para activar notificaciones push (FCM, solo Manager) coloca aquí tu google-services.json
+manager/google-services.json

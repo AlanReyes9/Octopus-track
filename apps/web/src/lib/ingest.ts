@@ -4,7 +4,9 @@ import {
   createAutomation,
   createCommandStore,
   createNotifier,
+  createFcmSender,
   createPipeline,
+  fcmFromEnv,
   publisherFromEnv,
   vapidFromEnv,
   type CommandStore,
@@ -28,7 +30,8 @@ export function services(): Services {
     const db = getDb();
     const publisher = publisherFromEnv();
     const commands = createCommandStore(db, publisher);
-    const notifier = createNotifier(db, vapidFromEnv());
+    const fcmConfig = fcmFromEnv();
+    const notifier = createNotifier(db, { vapid: vapidFromEnv(), fcm: fcmConfig ? createFcmSender(fcmConfig) : null });
     const pipeline = createPipeline({
       db,
       publisher,
