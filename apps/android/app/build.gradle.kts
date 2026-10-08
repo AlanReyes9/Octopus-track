@@ -36,7 +36,7 @@ android {
         buildConfigField("boolean", "PUSH_AVAILABLE", hasFirebase.toString())
         manifestPlaceholders["serverHost"] = URI(serverUrl).host
         vectorDrawables.useSupportLibrary = true
-        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
+        ndk { abiFilters += ((project.findProperty("octopus.abis") as String?) ?: "arm64-v8a,armeabi-v7a,x86_64").split(",") }
     }
 
     signingConfigs {
