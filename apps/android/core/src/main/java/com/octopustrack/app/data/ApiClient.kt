@@ -91,7 +91,15 @@ class ApiClient(
         response.use { r ->
             val text = withContext(Dispatchers.IO) { r.body?.string().orEmpty() }
             if (r.isSuccessful) return text
+            // OkHttp sigue las redirecciones solo; si hubo alguna antes de esta respuesta,
+            // el método pudo haber cambiado de POST a GET (lo exige el estándar HTTP para
+            // 301/302/303). Se añade la cadena para poder diagnosticarlo.
+            val redirectChain = generateSequence(r.priorResponse) { it.priorResponse }
+                .toList().asReversed()
+                .joinToString(" → ") { "${it.request.method} ${it.code}→${it.header("Location") ?: "?"}" } +
+                (if (r.priorResponse != null) " → ${r.request.method} ${r.code}" else "")
             val message = runCatching { AppJson.decodeFromString<ErrorBody>(text).error }.getOrNull()
+                ?.let { if (redirectChain.isEmpty()) it else "$it [redirigido: $redirectChain]" }
             val kind = when (r.code) {
                 401 -> ApiErrorKind.Unauthorized
                 403 -> ApiErrorKind.Forbidden
@@ -103,7 +111,8 @@ class ApiClient(
             }
             // El token propio del modo rastreador (bearer explícito) no cierra la sesión del panel.
             if (kind == ApiErrorKind.Unauthorized && bearer == null && connection().token != null) onUnauthorized()
-            throw ApiException(r.code, message ?: defaultMessage(r.code, text), kind)
+            val fallback = defaultMessage(r.code, text).let { if (redirectChain.isEmpty()) it else "$it [redirigido: $redirectChain]" }
+            throw ApiException(r.code, message ?: fallback, kind)
         }
     }
 

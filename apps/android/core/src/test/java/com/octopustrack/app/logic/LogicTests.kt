@@ -171,4 +171,21 @@ class ApiClientTests {
             }
         }
     }
+
+    /** Un POST redirigido con 301/302/303 puede reenviarse como GET: el mensaje debe mostrar la cadena de saltos. */
+    @Test fun redirectedPostShowsChain() = runBlocking {
+        MockWebServer().use { s ->
+            s.enqueue(MockResponse().setResponseCode(301).setHeader("Location", "/api/mobile/login"))
+            s.enqueue(MockResponse().setResponseCode(405))
+            try {
+                client(s).post<Map<String, String>, com.octopustrack.app.data.PingResponse>("/api/mobile/login/", mapOf("a" to "b"))
+                fail()
+            } catch (e: ApiException) {
+                assertEquals(405, e.status)
+                assertTrue("mensaje: ${e.message}", e.message.contains("redirigido"))
+                assertTrue("mensaje: ${e.message}", e.message.contains("301"))
+                assertTrue("mensaje: ${e.message}", e.message.contains("GET"))
+            }
+        }
+    }
 }
