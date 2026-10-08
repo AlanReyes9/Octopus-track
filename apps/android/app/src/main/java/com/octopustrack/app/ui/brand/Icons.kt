@@ -74,6 +74,12 @@ object Ic {
     val Shapes = L.drawable.lucide_ic_shapes
     val Smartphone = L.drawable.lucide_ic_smartphone
     val Activity = L.drawable.lucide_ic_activity
+    val Cpu = L.drawable.lucide_ic_cpu
+    val Users = L.drawable.lucide_ic_users
+    val Network = L.drawable.lucide_ic_network
+    val UserCog = L.drawable.lucide_ic_user_cog
+    val ChevronsUpDown = L.drawable.lucide_ic_chevrons_up_down
+    val Dashboard = L.drawable.lucide_ic_layout_dashboard
     val Compass = L.drawable.lucide_ic_compass
 }
 

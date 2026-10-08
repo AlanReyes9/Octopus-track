@@ -104,6 +104,7 @@ fun UnitsScreen(
     now: Instant = Instant.now(),
     initialQuery: String = "",
     initialFilter: UnitFilter = UnitFilter.All,
+    showTitle: Boolean = true,
 ) {
     var query by remember { mutableStateOf(initialQuery) }
     var filter by remember { mutableStateOf(initialFilter) }
@@ -111,7 +112,7 @@ fun UnitsScreen(
         matches(it, filter, now) && (query.isBlank() || it.name.contains(query, true) || (it.plate?.contains(query, true) ?: false))
     }
     Column(modifier.fillMaxSize()) {
-        ScreenTitle("Unidades", subtitle = if (loaded) "${units.size} en total · ${units.count { it.isOnline(now) }} con señal" else null)
+        if (showTitle) ScreenTitle("Unidades", subtitle = if (loaded) "${units.size} en total · ${units.count { it.isOnline(now) }} con señal" else null)
         OutlinedTextField(
             query, { query = it }, Modifier.fillMaxWidth().padding(horizontal = 20.dp),
             placeholder = { Text("Buscar por nombre o placa") }, singleLine = true,
