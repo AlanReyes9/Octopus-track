@@ -45,6 +45,26 @@ object MarkerImages {
         return bmp
     }
 
+    fun stopIconId(index: Int) = "stop|$index"
+
+    /** Círculo ámbar numerado para marcar una parada en el mapa. */
+    fun stopIcon(index: Int): Bitmap {
+        val bmp = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        val cx = SIZE / 2f
+        val r = 30f
+        val shadow = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = 0x33000000; setShadowLayer(8f, 0f, 3f, 0x55000000) }
+        c.drawCircle(cx, cx, r + 4f, shadow)
+        c.drawCircle(cx, cx, r + 4f, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = 0xFFFFFFFF.toInt() })
+        c.drawCircle(cx, cx, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = 0xFFF59E0B.toInt() })
+        val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFFFFFFFF.toInt(); textSize = r * 1.1f; textAlign = Paint.Align.CENTER; isFakeBoldText = true
+        }
+        val label = index.toString()
+        c.drawText(label, cx, cx - (text.ascent() + text.descent()) / 2f, text)
+        return bmp
+    }
+
     /** Triángulo que apunta hacia arriba, fuera del círculo; el mapa lo rota según el rumbo. */
     fun arrow(): Bitmap {
         val bmp = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)

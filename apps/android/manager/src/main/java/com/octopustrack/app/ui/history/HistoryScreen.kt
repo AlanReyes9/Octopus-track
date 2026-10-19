@@ -103,8 +103,10 @@ fun HistoryRoute(unit: FleetUnit, fleet: FleetRepository, onBack: () -> Unit) {
         stopsState = try { StopsState.Ready(fleet.stops(unit.id, from, to)) }
         catch (e: ApiException) { StopsState.Error(e.message ?: "No se pudieron cargar las paradas") }
     }
-    HistoryContent(unit, tab, { tab = it }, range, { range = it }, state, stopsState, onBack, { reload++ }) { points, cursor, m ->
-        RouteMap(unit, points, cursor, m)
+    var selectedStop by remember { mutableStateOf<StopDto?>(null) }
+    val stops = (stopsState as? StopsState.Ready)?.data?.stops.orEmpty()
+    HistoryContent(unit, tab, { tab = it }, range, { range = it }, state, stopsState, selectedStop, { selectedStop = it }, onBack, { reload++ }) { points, cursor, m ->
+        RouteMap(unit, points, cursor, m, stops, onStopClick = { selectedStop = it }, selectedStop = selectedStop)
     }
 }
 
@@ -117,6 +119,8 @@ fun HistoryContent(
     onRange: (HistoryRange) -> Unit,
     state: HistoryState,
     stopsState: StopsState,
+    selectedStop: StopDto?,
+    onSelectStop: (StopDto?) -> Unit,
     onBack: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
@@ -156,7 +160,7 @@ fun HistoryContent(
         }
         Box(Modifier.align(Alignment.BottomCenter).padding(12.dp).navigationBarsPadding()) {
             SoftCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), elevation = 10.dp) {
-                if (tab == HistoryTab.Stops) { StopsPanel(stopsState, onRetry); return@SoftCard }
+                if (tab == HistoryTab.Stops) { StopsPanel(stopsState, onRetry, onSelectStop); return@SoftCard }
                 when (state) {
                     HistoryState.Loading -> Text("Cargando recorrido…", Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     is HistoryState.Error -> Column(Modifier.padding(8.dp)) {
@@ -200,11 +204,15 @@ fun HistoryContent(
                 }
             }
         }
+        selectedStop?.let { stop ->
+            val index = (stopsState as? StopsState.Ready)?.data?.stops.orEmpty().indexOf(stop) + 1
+            StopDetailDialog(index, stop) { onSelectStop(null) }
+        }
     }
 }
 
 @Composable
-private fun StopsPanel(stopsState: StopsState, onRetry: () -> Unit) {
+private fun StopsPanel(stopsState: StopsState, onRetry: () -> Unit, onSelectStop: (StopDto) -> Unit) {
     when (stopsState) {
         StopsState.Loading -> Text("Cargando paradas…", Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
         is StopsState.Error -> Column(Modifier.padding(8.dp)) {
@@ -223,7 +231,7 @@ private fun StopsPanel(stopsState: StopsState, onRetry: () -> Unit) {
                         MetricTile(Ic.Gauge, "Tiempo parado", Formatting.duration(data.totalStoppedSeconds), Modifier.weight(1f))
                     }
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.height(260.dp)) {
-                        itemsIndexed(data.stops) { index, stop -> StopRow(index + 1, stop) }
+                        itemsIndexed(data.stops) { index, stop -> StopRow(index + 1, stop) { onSelectStop(stop) } }
                     }
                 }
             }
@@ -232,15 +240,11 @@ private fun StopsPanel(stopsState: StopsState, onRetry: () -> Unit) {
 }
 
 @Composable
-private fun StopRow(index: Int, stop: StopDto) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+private fun StopRow(index: Int, stop: StopDto, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable {
-                val uri = android.net.Uri.parse("geo:${stop.latitude},${stop.longitude}?q=${stop.latitude},${stop.longitude}")
-                runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri)) }
-            }
+            .clickable(onClick = onClick)
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -259,5 +263,32 @@ private fun StopRow(index: Int, stop: StopDto) {
         Text(Formatting.duration(stop.durationSeconds), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.size(8.dp))
         LIcon(Ic.ArrowLeft, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** Detalles de una parada, sin salir de la app (se ve sobre el mapa). */
+@Composable
+private fun StopDetailDialog(index: Int, stop: StopDto, onDismiss: () -> Unit) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { LIcon(Ic.Route, tint = MaterialTheme.colorScheme.primary, size = 28.dp) },
+        title = { Text("Parada $index") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                DetailRow("Duración", Formatting.duration(stop.durationSeconds))
+                DetailRow("Desde", Formatting.dateTime(stop.start))
+                DetailRow("Hasta", Formatting.dateTime(stop.end))
+                DetailRow("Ubicación", Formatting.coords(stop.latitude, stop.longitude))
+            }
+        },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Cerrar") } },
+    )
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodyMedium)
     }
 }

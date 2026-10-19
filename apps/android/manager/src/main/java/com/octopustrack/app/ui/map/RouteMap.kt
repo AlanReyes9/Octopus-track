@@ -6,6 +6,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -15,12 +16,14 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.octopustrack.app.data.FleetUnit
 import com.octopustrack.app.data.HistoryPointDto
+import com.octopustrack.app.data.StopDto
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
+import org.maplibre.android.style.expressions.Expression
 import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.layers.SymbolLayer
@@ -30,15 +33,27 @@ import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
 
-/** Recorrido de una unidad: línea morada y un marcador que se mueve con el control deslizante. */
+private const val LAYER_STOPS = "stops-layer"
+
+/** Recorrido de una unidad: línea morada, paradas numeradas y un marcador que se mueve con el control deslizante. */
 @Composable
-fun RouteMap(unit: FleetUnit, points: List<HistoryPointDto>, cursor: Int, modifier: Modifier = Modifier) {
+fun RouteMap(
+    unit: FleetUnit,
+    points: List<HistoryPointDto>,
+    cursor: Int,
+    modifier: Modifier = Modifier,
+    stops: List<StopDto> = emptyList(),
+    onStopClick: (StopDto) -> Unit = {},
+    selectedStop: StopDto? = null,
+) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val mapView = remember { MapView(context) }
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     var style by remember { mutableStateOf<Style?>(null) }
     var fitted by remember(points) { mutableStateOf(false) }
+    val currentStops by rememberUpdatedState(stops)
+    val currentOnStopClick by rememberUpdatedState(onStopClick)
 
     DisposableEffect(lifecycle, mapView) {
         val obs = LifecycleEventObserver { _, e ->
@@ -67,14 +82,44 @@ fun RouteMap(unit: FleetUnit, points: List<HistoryPointDto>, cursor: Int, modifi
                 s.addLayer(LineLayer("route-line", "route").withProperties(
                     PropertyFactory.lineColor(0xFF7C3AED.toInt()), PropertyFactory.lineWidth(5f),
                     PropertyFactory.lineCap("round"), PropertyFactory.lineJoin("round")))
+                s.addSource(GeoJsonSource("stops", FeatureCollection.fromFeatures(emptyList())))
+                s.addLayer(SymbolLayer(LAYER_STOPS, "stops").withProperties(
+                    PropertyFactory.iconImage(Expression.get("icon")),
+                    PropertyFactory.iconAllowOverlap(true), PropertyFactory.iconIgnorePlacement(true),
+                    PropertyFactory.iconSize(0.9f)))
                 s.addSource(GeoJsonSource("cursor", FeatureCollection.fromFeatures(emptyList())))
                 s.addImage("cursor-img", MarkerImages.marker(context, unit.icon, unit.color, true, false))
                 s.addLayer(SymbolLayer("cursor-layer", "cursor").withProperties(
                     PropertyFactory.iconImage("cursor-img"), PropertyFactory.iconAllowOverlap(true), PropertyFactory.iconSize(0.9f)))
                 style = s
             }
+            m.addOnMapClickListener { ll ->
+                val px = m.projection.toScreenLocation(ll)
+                val idx = m.queryRenderedFeatures(px, LAYER_STOPS).firstOrNull()?.getProperty("idx")?.asInt
+                val stop = idx?.let { currentStops.getOrNull(it) }
+                if (stop != null) currentOnStopClick(stop)
+                stop != null
+            }
         }
         onDispose { lifecycle.removeObserver(obs); mapView.onPause(); mapView.onStop(); mapView.onDestroy() }
+    }
+
+    LaunchedEffect(style, stops) {
+        val s = style ?: return@LaunchedEffect
+        stops.forEachIndexed { i, _ -> s.addImage(MarkerImages.stopIconId(i + 1), MarkerImages.stopIcon(i + 1)) }
+        val feats = stops.mapIndexed { i, stop ->
+            Feature.fromGeometry(Point.fromLngLat(stop.longitude, stop.latitude)).also {
+                it.addStringProperty("icon", MarkerImages.stopIconId(i + 1))
+                it.addNumberProperty("idx", i)
+            }
+        }
+        s.getSourceAs<GeoJsonSource>("stops")?.setGeoJson(FeatureCollection.fromFeatures(feats))
+    }
+
+    LaunchedEffect(map, selectedStop) {
+        val m = map ?: return@LaunchedEffect
+        val st = selectedStop ?: return@LaunchedEffect
+        m.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(st.latitude, st.longitude), maxOf(m.cameraPosition.zoom, 15.0)))
     }
 
     LaunchedEffect(style, points) {

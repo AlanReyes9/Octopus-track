@@ -46,25 +46,28 @@ export function HistoryViewer({
   const [loading, setLoading] = useState(false);
   const [cursor, setCursor] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const [selectedStop, setSelectedStop] = useState<{ stop: StopDto; index: number } | null>(null);
   const marker = useRef<Marker | null>(null);
   const stopMarkers = useRef<Marker[]>([]);
 
+  // Carga a la vez el recorrido y las paradas: las paradas se superponen en el
+  // mapa en ambas pestañas, así que no tiene sentido pedirlas por separado.
   async function load(e?: React.FormEvent) {
     e?.preventDefault();
     if (!deviceId) return;
     setLoading(true);
     setError(null);
     setPlaying(false);
+    setSelectedStop(null);
     const qs = new URLSearchParams({ deviceId, from: new Date(from).toISOString(), to: new Date(to).toISOString() });
     try {
-      if (tab === "route") {
-        const res = await api<HistoryResponse>(`/api/positions/history?${qs}`);
-        setData(res);
-        setCursor(0);
-      } else {
-        const res = await api<StopsReport>(`/api/positions/stops?${qs}`);
-        setStops(res);
-      }
+      const [historyRes, stopsRes] = await Promise.all([
+        api<HistoryResponse>(`/api/positions/history?${qs}`),
+        api<StopsReport>(`/api/positions/stops?${qs}`),
+      ]);
+      setData(historyRes);
+      setStops(stopsRes);
+      setCursor(0);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -72,16 +75,10 @@ export function HistoryViewer({
     }
   }
 
-  // Carga automática cuando se llega desde el mapa en vivo, y al cambiar de pestaña
-  // si ya hay unidad y fechas elegidas (reusa el mismo filtro para la otra vista).
+  // Carga automática cuando se llega desde el mapa en vivo.
   useEffect(() => {
     if (initialDeviceId && map) void load();
   }, [initialDeviceId, map]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (!map || !deviceId) return;
-    if (tab === "route" && !data) void load();
-    if (tab === "stops" && !stops) void load();
-  }, [tab, map]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Dibuja la ruta (solo en la pestaña Recorrido).
   useEffect(() => {
@@ -117,11 +114,12 @@ export function HistoryViewer({
     }
   }, [map, lib, data, tab]);
 
-  // Marcadores de paradas (solo en la pestaña Paradas).
+  // Marcadores de paradas: se muestran sobre el recorrido en ambas pestañas.
+  // Un clic selecciona la parada (se ve en el panel, sin salir a Google Maps).
   useEffect(() => {
     stopMarkers.current.forEach((m) => m.remove());
     stopMarkers.current = [];
-    if (!map || !lib || tab !== "stops" || !stops || stops.stops.length === 0) return;
+    if (!map || !lib || !stops || stops.stops.length === 0) return;
     const b = new lib.LngLatBounds();
     stops.stops.forEach((s, i) => {
       const el = document.createElement("div");
@@ -129,12 +127,15 @@ export function HistoryViewer({
         "flex size-7 items-center justify-center rounded-full border-2 border-white bg-amber-500 text-xs font-bold text-white shadow-md cursor-pointer";
       el.textContent = String(i + 1);
       el.title = `Parada ${i + 1}: ${formatDuration(s.durationSeconds)}`;
-      el.addEventListener("click", () => window.open(googleMapsPlace(s.latitude, s.longitude), "_blank", "noopener,noreferrer"));
+      el.addEventListener("click", () => {
+        setSelectedStop({ stop: s, index: i + 1 });
+        map.flyTo({ center: [s.longitude, s.latitude], zoom: Math.max(map.getZoom(), 15) });
+      });
       const m = new lib.Marker({ element: el }).setLngLat([s.longitude, s.latitude]).addTo(map);
       stopMarkers.current.push(m);
       b.extend([s.longitude, s.latitude]);
     });
-    map.fitBounds(b, { padding: 60, maxZoom: 16 });
+    if (tab === "stops") map.fitBounds(b, { padding: 60, maxZoom: 16 });
   }, [map, lib, stops, tab]);
 
   // Marcador de reproducción: mismo icono y color que tiene la unidad en el mapa en vivo.
@@ -216,7 +217,7 @@ export function HistoryViewer({
             <Input id="to" type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} />
           </div>
           <Button type="submit" disabled={loading || !deviceId}>
-            {loading ? "Cargando…" : tab === "route" ? "Ver recorrido" : "Ver paradas"}
+            {loading ? "Cargando…" : "Consultar"}
           </Button>
           {error && <p className="text-sm text-destructive">{error}</p>}
         </form>
@@ -281,7 +282,16 @@ export function HistoryViewer({
                 </Button>
                 <ul className="space-y-2">
                   {stops.stops.map((s, i) => (
-                    <StopRow key={s.start} index={i + 1} stop={s} />
+                    <StopRow
+                      key={s.start}
+                      index={i + 1}
+                      stop={s}
+                      selected={selectedStop?.stop.start === s.start}
+                      onSelect={() => {
+                        setSelectedStop({ stop: s, index: i + 1 });
+                        map?.flyTo({ center: [s.longitude, s.latitude], zoom: Math.max(map.getZoom(), 15) });
+                      }}
+                    />
                   ))}
                 </ul>
               </>
@@ -289,34 +299,97 @@ export function HistoryViewer({
           </div>
         )}
       </section>
-      <div ref={containerRef} className="min-h-[55svh] flex-1" />
+      <div className="relative min-h-[55svh] flex-1">
+        <div ref={containerRef} className="absolute inset-0" />
+        {selectedStop && (
+          <StopDetailCard selected={selectedStop} onClose={() => setSelectedStop(null)} />
+        )}
+      </div>
     </div>
   );
 }
 
-function StopRow({ index, stop }: { index: number; stop: StopDto }) {
+function StopDetailCard({ selected, onClose }: { selected: { stop: StopDto; index: number }; onClose: () => void }) {
+  const { stop, index } = selected;
   return (
-    <li className="rounded-lg border p-2.5">
-      <div className="mb-1 flex items-center justify-between">
-        <span className="flex items-center gap-1.5 font-medium">
+    <div className="absolute right-3 top-3 z-10 w-72 rounded-xl border bg-white p-3 shadow-lg">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="flex items-center gap-1.5 font-semibold">
           <span className="flex size-5 items-center justify-center rounded-full bg-amber-500 text-[11px] font-bold text-white">
             {index}
           </span>
           Parada {index}
         </span>
-        <Badge variant="warning">{formatDuration(stop.durationSeconds)}</Badge>
+        <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground" aria-label="Cerrar">
+          ✕
+        </button>
       </div>
-      <p className="text-xs text-muted-foreground">
-        {formatDateTime(stop.start)} → {formatDateTime(stop.end)}
-      </p>
+      <dl className="space-y-1 text-sm">
+        <div className="flex justify-between">
+          <dt className="text-muted-foreground">Duración</dt>
+          <dd className="font-medium">{formatDuration(stop.durationSeconds)}</dd>
+        </div>
+        <div className="flex justify-between gap-2">
+          <dt className="text-muted-foreground">Desde</dt>
+          <dd className="text-right">{formatDateTime(stop.start)}</dd>
+        </div>
+        <div className="flex justify-between gap-2">
+          <dt className="text-muted-foreground">Hasta</dt>
+          <dd className="text-right">{formatDateTime(stop.end)}</dd>
+        </div>
+        <div className="flex justify-between gap-2">
+          <dt className="text-muted-foreground">Ubicación</dt>
+          <dd className="text-right font-mono text-xs">
+            {stop.latitude.toFixed(5)}, {stop.longitude.toFixed(5)}
+          </dd>
+        </div>
+      </dl>
       <a
         href={googleMapsPlace(stop.latitude, stop.longitude)}
         target="_blank"
         rel="noopener noreferrer"
-        className="font-mono text-xs text-violet-600 hover:underline"
+        className="mt-2 inline-block text-xs text-violet-600 hover:underline"
       >
-        {stop.latitude.toFixed(5)}, {stop.longitude.toFixed(5)}
+        Abrir en Google Maps ↗
       </a>
+    </div>
+  );
+}
+
+function StopRow({
+  index,
+  stop,
+  selected,
+  onSelect,
+}: {
+  index: number;
+  stop: StopDto;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onSelect}
+        className={cn("w-full rounded-lg border p-2.5 text-left transition", selected ? "border-violet-400 bg-violet-50" : "hover:bg-muted/50")}
+      >
+        <div className="mb-1 flex items-center justify-between">
+          <span className="flex items-center gap-1.5 font-medium">
+            <span className="flex size-5 items-center justify-center rounded-full bg-amber-500 text-[11px] font-bold text-white">
+              {index}
+            </span>
+            Parada {index}
+          </span>
+          <Badge variant="warning">{formatDuration(stop.durationSeconds)}</Badge>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {formatDateTime(stop.start)} → {formatDateTime(stop.end)}
+        </p>
+        <p className="font-mono text-xs text-muted-foreground">
+          {stop.latitude.toFixed(5)}, {stop.longitude.toFixed(5)}
+        </p>
+      </button>
     </li>
   );
 }
