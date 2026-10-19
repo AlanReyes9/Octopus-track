@@ -237,15 +237,15 @@ export async function deviceStoppedSince(
     last_moving_time: string | null;
     earliest_time: string | null;
   }>(sql`
-    WITH window AS (
+    WITH recent AS (
       SELECT time, speed_kmh FROM positions
       WHERE tenant_id = ${tenantId} AND device_id = ${deviceId}
         AND time >= now() - make_interval(days => ${STOPPED_SINCE_LOOKBACK_DAYS})
     )
     SELECT
-      (SELECT speed_kmh FROM window ORDER BY time DESC LIMIT 1) AS latest_speed,
-      (SELECT time FROM window WHERE COALESCE(speed_kmh, 0) > ${speedThreshold} ORDER BY time DESC LIMIT 1) AS last_moving_time,
-      (SELECT time FROM window ORDER BY time ASC LIMIT 1) AS earliest_time
+      (SELECT speed_kmh FROM recent ORDER BY time DESC LIMIT 1) AS latest_speed,
+      (SELECT time FROM recent WHERE COALESCE(speed_kmh, 0) > ${speedThreshold} ORDER BY time DESC LIMIT 1) AS last_moving_time,
+      (SELECT time FROM recent ORDER BY time ASC LIMIT 1) AS earliest_time
   `);
 
   const row = rows[0];
