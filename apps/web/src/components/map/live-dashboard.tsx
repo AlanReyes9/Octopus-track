@@ -30,6 +30,7 @@ import { api } from "@/lib/fetcher";
 import { googleMapsDirections, googleMapsPlace } from "@/lib/maps-links";
 import { cn, formatDateTime, isOnline, timeAgo } from "@/lib/utils";
 import type { LivePosition } from "@/server/positions";
+import { CollapsibleMapPanel } from "./collapsible-panel";
 import { syncGeofenceLayer, useMap, type GeofenceFeature } from "./use-map";
 import { createVehicleMarkerElement, setMarkerCourse } from "./vehicle-marker";
 
@@ -143,9 +144,11 @@ export function LiveDashboard() {
   const moving = positions.filter((p) => isOnline(p.time) && (p.speedKmh ?? 0) > 3).length;
 
   return (
-    <div className="flex h-full flex-col lg:flex-row">
+    <div className="relative h-full">
+      <div ref={containerRef} className="absolute inset-0" />
+
       {/* Lista de unidades */}
-      <section className="flex max-h-[45svh] flex-col border-b bg-white lg:max-h-none lg:w-[340px] lg:border-r lg:border-b-0">
+      <CollapsibleMapPanel contentClassName="flex flex-1 flex-col">
         <PushBanner />
         <div className="space-y-4 border-b p-4">
           <div className="flex items-center justify-between">
@@ -230,15 +233,11 @@ export function LiveDashboard() {
             </ul>
           </div>
         )}
-      </section>
+      </CollapsibleMapPanel>
 
-      {/* Mapa + ficha del seleccionado */}
-      <div className="relative min-h-[55svh] flex-1">
-        <div className="absolute inset-0">
-          <div ref={containerRef} className="h-full w-full" />
-        </div>
-        {current && (
-          <div className="absolute inset-x-3 bottom-3 z-10 sm:right-auto sm:left-4 sm:w-[380px]">
+      {/* Ficha del seleccionado */}
+      {current && (
+        <div className="absolute inset-x-3 bottom-3 z-10 sm:right-auto sm:left-4 sm:w-[380px]">
             <div className="rounded-2xl border bg-white/95 p-4 shadow-xl shadow-violet-900/10 backdrop-blur">
               <div className="flex items-start gap-3">
                 <span className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl text-white" style={{ background: current.color }}>
@@ -299,7 +298,6 @@ export function LiveDashboard() {
             </div>
           </div>
         )}
-      </div>
 
       {current && (
         <CommandsDialog

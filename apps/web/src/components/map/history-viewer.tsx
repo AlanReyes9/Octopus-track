@@ -13,6 +13,7 @@ import { googleMapsPlace } from "@/lib/maps-links";
 import { cn, formatDateTime, formatDuration } from "@/lib/utils";
 import type { HistoryPoint } from "@/server/positions";
 import type { StopDto, StopsReport } from "@/server/positions";
+import { CollapsibleMapPanel } from "./collapsible-panel";
 import { useMap } from "./use-map";
 import { createVehicleMarkerElement, setMarkerCourse } from "./vehicle-marker";
 
@@ -177,8 +178,10 @@ export function HistoryViewer({
   }, [playing, data]);
 
   return (
-    <div className="flex h-full flex-col lg:flex-row">
-      <section className="space-y-4 overflow-auto border-b bg-white p-4 lg:w-[340px] lg:border-r lg:border-b-0">
+    <div className="relative h-full">
+      <div ref={containerRef} className="absolute inset-0" />
+      {selectedStop && <StopDetailCard selected={selectedStop} onClose={() => setSelectedStop(null)} />}
+      <CollapsibleMapPanel>
         <h1 className="text-lg font-bold tracking-tight">Historial</h1>
         <div className="flex gap-1 rounded-lg bg-muted p-1 text-sm">
           <button
@@ -298,13 +301,7 @@ export function HistoryViewer({
             )}
           </div>
         )}
-      </section>
-      <div className="relative min-h-[55svh] flex-1">
-        <div ref={containerRef} className="absolute inset-0" />
-        {selectedStop && (
-          <StopDetailCard selected={selectedStop} onClose={() => setSelectedStop(null)} />
-        )}
-      </div>
+      </CollapsibleMapPanel>
     </div>
   );
 }

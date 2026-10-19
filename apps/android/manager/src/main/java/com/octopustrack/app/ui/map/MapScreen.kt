@@ -4,11 +4,13 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.view.MotionEvent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -90,7 +92,7 @@ fun navigateTo(context: Context, u: FleetUnit) {
     }
 }
 
-/** Mapa en vivo: panel de unidades (como en la web) arriba y mapa debajo; al elegir una unidad el mapa ocupa todo. */
+/** Mapa en vivo: el mapa ocupa toda la pantalla; la lista de unidades se abre como panel retráctil. */
 @Composable
 fun LiveScreen(
     units: List<FleetUnit>,
@@ -108,24 +110,37 @@ fun LiveScreen(
     val context = LocalContext.current
     var follow by remember { mutableStateOf(true) }
     var query by remember { mutableStateOf("") }
+    var panelOpen by remember { mutableStateOf(selectedId == null) }
     val selected = units.firstOrNull { it.id == selectedId }
-    Column(modifier.fillMaxSize()) {
-        androidx.compose.animation.AnimatedVisibility(selected == null, Modifier.weight(0.46f, fill = true)) {
-            LivePanel(units, alerts, mode, loaded, canManage, query, { query = it }, selectedId) { onSelect(it); follow = true }
+    Box(modifier.fillMaxSize()) {
+        FleetMap(units, geofences, selectedId, follow, { onSelect(it); if (it != null) follow = true }, onUserGesture = { follow = false }, Modifier.fillMaxSize())
+        if (selected != null) {
+            UnitSheet(
+                selected, follow,
+                onClose = { onSelect(null) },
+                onFollow = { follow = !follow },
+                onOpenMaps = { openInMaps(context, selected) },
+                onNavigate = { navigateTo(context, selected) },
+                onHistory = { onHistory(selected) },
+                onCommands = { onCommands(selected) },
+                modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp),
+            )
         }
-        Box(Modifier.weight(if (selected == null) 0.54f else 1f, fill = true).fillMaxWidth()) {
-            FleetMap(units, geofences, selectedId, follow, { onSelect(it); if (it != null) follow = true }, onUserGesture = { follow = false }, Modifier.fillMaxSize())
-            if (selected != null) {
-                UnitSheet(
-                    selected, follow,
-                    onClose = { onSelect(null) },
-                    onFollow = { follow = !follow },
-                    onOpenMaps = { openInMaps(context, selected) },
-                    onNavigate = { navigateTo(context, selected) },
-                    onHistory = { onHistory(selected) },
-                    onCommands = { onCommands(selected) },
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp),
-                )
+        IconCircleButton(
+            icon = if (panelOpen) Ic.Close else Ic.Menu,
+            onClick = { panelOpen = !panelOpen },
+            modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(12.dp),
+            container = MaterialTheme.colorScheme.surface,
+        )
+        if (panelOpen) {
+            Box(
+                Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.3f))
+                    .clickable(indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) { panelOpen = false },
+            )
+            Box(Modifier.align(Alignment.TopStart).fillMaxHeight().fillMaxWidth(0.88f).statusBarsPadding()) {
+                LivePanel(units, alerts, mode, loaded, canManage, query, { query = it }, selectedId, modifier = Modifier.fillMaxHeight()) {
+                    onSelect(it); follow = true; panelOpen = false
+                }
             }
         }
     }

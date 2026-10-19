@@ -21,6 +21,7 @@ import com.composables.icons.lucide.R as L
 object Ic {
     val Map = L.drawable.lucide_ic_map
     val List = L.drawable.lucide_ic_list
+    val Menu = L.drawable.lucide_ic_menu
     val Bell = L.drawable.lucide_ic_bell
     val BellRing = L.drawable.lucide_ic_bell_ring
     val BellOff = L.drawable.lucide_ic_bell_off

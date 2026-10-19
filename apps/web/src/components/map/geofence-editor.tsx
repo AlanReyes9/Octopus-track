@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/fetcher";
 import { timeAgo } from "@/lib/utils";
+import { CollapsibleMapPanel } from "./collapsible-panel";
 import { GeofenceRulesDialog } from "./geofence-rules-dialog";
 import { syncGeofenceLayer, useMap, type GeofenceFeature } from "./use-map";
 
@@ -158,8 +159,9 @@ export function GeofenceEditor({ canManage }: { canManage: boolean }) {
   }
 
   return (
-    <div className="flex h-full flex-col lg:flex-row">
-      <section className="flex flex-col gap-4 overflow-auto border-b bg-white p-4 lg:w-[340px] lg:border-r lg:border-b-0">
+    <div className="relative h-full">
+      <div ref={containerRef} className="absolute inset-0" />
+      <CollapsibleMapPanel contentClassName="flex flex-col gap-4 p-4">
         <h1 className="text-lg font-bold tracking-tight">Geocercas</h1>
 
         {canManage && (
@@ -245,8 +247,7 @@ export function GeofenceEditor({ canManage }: { canManage: boolean }) {
             ))}
           </ul>
         </div>
-      </section>
-      <div ref={containerRef} className="min-h-[55svh] flex-1" />
+      </CollapsibleMapPanel>
       <GeofenceRulesDialog geofence={rulesFor} onClose={() => setRulesFor(null)} />
     </div>
   );
