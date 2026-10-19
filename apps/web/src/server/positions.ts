@@ -128,3 +128,90 @@ export async function deviceHistory(tenantId: string, deviceId: string, from: Da
     },
   };
 }
+
+export interface StopDto {
+  start: string;
+  end: string;
+  durationSeconds: number;
+  latitude: number;
+  longitude: number;
+}
+
+export interface StopsReport {
+  deviceId: string;
+  from: string;
+  to: string;
+  stops: StopDto[];
+  totalStops: number;
+  totalStoppedSeconds: number;
+}
+
+const DEFAULT_SPEED_THRESHOLD_KMH = 3;
+const DEFAULT_MIN_STOP_SECONDS = 120;
+
+/**
+ * Paradas de un equipo en un rango: tramos de posiciones consecutivas por
+ * debajo del umbral de velocidad, de al menos `minStopSeconds`. Se calcula
+ * directamente en SQL (técnica "gaps and islands") para no traer miles de
+ * puntos a Node en rangos largos — a diferencia de deviceHistory(), nunca
+ * se submuestrea: un punto de más o de menos cambiaría la duración real.
+ */
+export async function deviceStops(
+  tenantId: string,
+  deviceId: string,
+  from: Date,
+  to: Date,
+  opts: { speedThresholdKmh?: number; minStopSeconds?: number } = {},
+): Promise<StopsReport> {
+  const speedThreshold = opts.speedThresholdKmh ?? DEFAULT_SPEED_THRESHOLD_KMH;
+  const minStopSeconds = opts.minStopSeconds ?? DEFAULT_MIN_STOP_SECONDS;
+  const fromIso = from.toISOString();
+  const toIso = to.toISOString();
+
+  const rows = await getDb().execute<{
+    start_time: string;
+    end_time: string;
+    duration_seconds: number;
+    latitude: number;
+    longitude: number;
+  }>(sql`
+    WITH pts AS (
+      SELECT time, latitude, longitude, (COALESCE(speed_kmh, 0) <= ${speedThreshold}) AS stopped
+      FROM positions
+      WHERE tenant_id = ${tenantId} AND device_id = ${deviceId} AND time BETWEEN ${fromIso}::timestamptz AND ${toIso}::timestamptz
+    ),
+    grouped AS (
+      SELECT *,
+        row_number() OVER (ORDER BY time) - row_number() OVER (PARTITION BY stopped ORDER BY time) AS grp
+      FROM pts
+    )
+    SELECT
+      min(time) AS start_time,
+      max(time) AS end_time,
+      EXTRACT(EPOCH FROM (max(time) - min(time)))::int AS duration_seconds,
+      avg(latitude)::float8 AS latitude,
+      avg(longitude)::float8 AS longitude
+    FROM grouped
+    WHERE stopped
+    GROUP BY grp
+    HAVING EXTRACT(EPOCH FROM (max(time) - min(time))) >= ${minStopSeconds}
+    ORDER BY min(time)
+  `);
+
+  const stops: StopDto[] = rows.map((r) => ({
+    start: new Date(r.start_time).toISOString(),
+    end: new Date(r.end_time).toISOString(),
+    durationSeconds: Number(r.duration_seconds),
+    latitude: Number(r.latitude),
+    longitude: Number(r.longitude),
+  }));
+
+  return {
+    deviceId,
+    from: fromIso,
+    to: toIso,
+    stops,
+    totalStops: stops.length,
+    totalStoppedSeconds: stops.reduce((sum, s) => sum + s.durationSeconds, 0),
+  };
+}

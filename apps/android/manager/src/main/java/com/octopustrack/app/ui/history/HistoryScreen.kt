@@ -28,13 +28,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
 import com.octopustrack.app.data.ApiException
 import com.octopustrack.app.data.FleetRepository
 import com.octopustrack.app.data.FleetUnit
 import com.octopustrack.app.data.Formatting
 import com.octopustrack.app.data.HistoryPointDto
 import com.octopustrack.app.data.HistoryResponse
+import com.octopustrack.app.data.StopDto
+import com.octopustrack.app.data.StopsReportDto
 import com.octopustrack.app.ui.brand.Ic
+import com.octopustrack.app.ui.brand.LIcon
+import com.octopustrack.app.ui.components.BrandButton
+import com.octopustrack.app.ui.components.ButtonKind
 import com.octopustrack.app.ui.components.Chip
 import com.octopustrack.app.ui.components.EmptyState
 import com.octopustrack.app.ui.components.IconCircleButton
@@ -64,11 +75,21 @@ sealed interface HistoryState {
     data class Ready(val data: HistoryResponse) : HistoryState
 }
 
-/** Pantalla con estado: carga el recorrido del servidor. */
+sealed interface StopsState {
+    data object Loading : StopsState
+    data class Error(val message: String) : StopsState
+    data class Ready(val data: StopsReportDto) : StopsState
+}
+
+enum class HistoryTab(val label: String) { Route("Recorrido"), Stops("Paradas") }
+
+/** Pantalla con estado: carga el recorrido o las paradas del servidor según la pestaña. */
 @Composable
 fun HistoryRoute(unit: FleetUnit, fleet: FleetRepository, onBack: () -> Unit) {
+    var tab by remember { mutableStateOf(HistoryTab.Route) }
     var range by remember { mutableStateOf(HistoryRange.Today) }
     var state by remember { mutableStateOf<HistoryState>(HistoryState.Loading) }
+    var stopsState by remember { mutableStateOf<StopsState>(StopsState.Loading) }
     var reload by remember { mutableIntStateOf(0) }
     LaunchedEffect(range, reload) {
         state = HistoryState.Loading
@@ -76,15 +97,26 @@ fun HistoryRoute(unit: FleetUnit, fleet: FleetRepository, onBack: () -> Unit) {
         state = try { HistoryState.Ready(fleet.history(unit.id, from, to)) }
         catch (e: ApiException) { HistoryState.Error(e.message ?: "No se pudo cargar el historial") }
     }
-    HistoryContent(unit, range, { range = it }, state, onBack, { reload++ }) { points, cursor, m -> RouteMap(unit, points, cursor, m) }
+    LaunchedEffect(range, reload) {
+        stopsState = StopsState.Loading
+        val (from, to) = range.bounds()
+        stopsState = try { StopsState.Ready(fleet.stops(unit.id, from, to)) }
+        catch (e: ApiException) { StopsState.Error(e.message ?: "No se pudieron cargar las paradas") }
+    }
+    HistoryContent(unit, tab, { tab = it }, range, { range = it }, state, stopsState, onBack, { reload++ }) { points, cursor, m ->
+        RouteMap(unit, points, cursor, m)
+    }
 }
 
 @Composable
 fun HistoryContent(
     unit: FleetUnit,
+    tab: HistoryTab,
+    onTab: (HistoryTab) -> Unit,
     range: HistoryRange,
     onRange: (HistoryRange) -> Unit,
     state: HistoryState,
+    stopsState: StopsState,
     onBack: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
@@ -118,9 +150,13 @@ fun HistoryContent(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 HistoryRange.entries.forEach { r -> Chip(r.label, r == range, { onRange(r) }) }
             }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                HistoryTab.entries.forEach { t -> Chip(t.label, t == tab, { onTab(t) }) }
+            }
         }
         Box(Modifier.align(Alignment.BottomCenter).padding(12.dp).navigationBarsPadding()) {
             SoftCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), elevation = 10.dp) {
+                if (tab == HistoryTab.Stops) { StopsPanel(stopsState, onRetry); return@SoftCard }
                 when (state) {
                     HistoryState.Loading -> Text("Cargando recorrido…", Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     is HistoryState.Error -> Column(Modifier.padding(8.dp)) {
@@ -164,5 +200,64 @@ fun HistoryContent(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun StopsPanel(stopsState: StopsState, onRetry: () -> Unit) {
+    when (stopsState) {
+        StopsState.Loading -> Text("Cargando paradas…", Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        is StopsState.Error -> Column(Modifier.padding(8.dp)) {
+            EmptyState(Ic.WifiOff, "No se pudo cargar", stopsState.message) {
+                BrandButton("Reintentar", onRetry, icon = Ic.Refresh, height = 44.dp)
+            }
+        }
+        is StopsState.Ready -> {
+            val data = stopsState.data
+            if (data.stops.isEmpty()) {
+                EmptyState(Ic.Route, "Sin paradas", "No se detectaron paradas en este periodo.")
+            } else {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        MetricTile(Ic.Route, "Paradas", "${data.totalStops}", Modifier.weight(1f))
+                        MetricTile(Ic.Gauge, "Tiempo parado", Formatting.duration(data.totalStoppedSeconds), Modifier.weight(1f))
+                    }
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.height(260.dp)) {
+                        itemsIndexed(data.stops) { index, stop -> StopRow(index + 1, stop) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StopRow(index: Int, stop: StopDto) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable {
+                val uri = android.net.Uri.parse("geo:${stop.latitude},${stop.longitude}?q=${stop.latitude},${stop.longitude}")
+                runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri)) }
+            }
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(28.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
+            Text("$index", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+        }
+        Spacer(Modifier.size(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text("Parada $index", style = MaterialTheme.typography.titleSmall)
+            Text(
+                "${Formatting.dateTime(stop.start)} – ${Formatting.dateTime(stop.end)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Text(Formatting.duration(stop.durationSeconds), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.size(8.dp))
+        LIcon(Ic.ArrowLeft, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

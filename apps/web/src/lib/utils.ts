@@ -10,6 +10,16 @@ export function formatDateTime(value: string | Date | null | undefined): string 
   return new Intl.DateTimeFormat("es", { dateStyle: "short", timeStyle: "medium" }).format(new Date(value));
 }
 
+/** "2 h 15 min", "45 min", "30 s" — para la duración de una parada. */
+export function formatDuration(totalSeconds: number): string {
+  const s = Math.max(0, Math.round(totalSeconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (h > 0) return m > 0 ? `${h} h ${m} min` : `${h} h`;
+  if (m > 0) return `${m} min`;
+  return `${s} s`;
+}
+
 export function timeAgo(value: string | Date | null | undefined): string {
   if (!value) return "nunca";
   const s = Math.round((Date.now() - new Date(value).getTime()) / 1000);

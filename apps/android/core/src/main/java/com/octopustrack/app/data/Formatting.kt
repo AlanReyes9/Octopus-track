@@ -55,6 +55,19 @@ object Formatting {
 
     fun speed(kmh: Double?): String = "${(kmh ?: 0.0).roundToInt()} km/h"
     fun km(value: Double): String = String.format(ES, "%.1f km", value)
+
+    /** "2 h 15 min", "45 min", "30 s" — para la duración de una parada. */
+    fun duration(totalSeconds: Int): String {
+        val s = totalSeconds.coerceAtLeast(0)
+        val h = s / 3600
+        val m = (s % 3600) / 60
+        return when {
+            h > 0 && m > 0 -> "$h h $m min"
+            h > 0 -> "$h h"
+            m > 0 -> "$m min"
+            else -> "$s s"
+        }
+    }
     fun coords(lat: Double, lng: Double): String = String.format(Locale.US, "%.6f, %.6f", lat, lng)
 }
 

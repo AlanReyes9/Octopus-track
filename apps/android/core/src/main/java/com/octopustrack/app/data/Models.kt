@@ -135,6 +135,22 @@ data class HistoryResponse(
     val summary: HistorySummaryDto = HistorySummaryDto(),
 )
 
+@Serializable
+data class StopDto(
+    val start: String,
+    val end: String,
+    val durationSeconds: Int,
+    val latitude: Double,
+    val longitude: Double,
+)
+
+@Serializable
+data class StopsReportDto(
+    val stops: List<StopDto> = emptyList(),
+    val totalStops: Int = 0,
+    val totalStoppedSeconds: Int = 0,
+)
+
 // ---------------------------------------------------------------- comandos
 @Serializable
 data class CommandParamDef(
