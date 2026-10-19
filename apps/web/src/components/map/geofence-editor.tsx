@@ -159,7 +159,7 @@ export function GeofenceEditor({ canManage }: { canManage: boolean }) {
   }
 
   return (
-    <div className="relative h-full">
+    <div className="relative h-full min-h-screen">
       <div ref={containerRef} className="absolute inset-0" />
       <CollapsibleMapPanel contentClassName="flex flex-col gap-4 p-4">
         <h1 className="text-lg font-bold tracking-tight">Geocercas</h1>

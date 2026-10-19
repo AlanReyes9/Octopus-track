@@ -54,6 +54,18 @@ export function useMap(opts: { center?: [number, number]; zoom?: number } = {}) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // El contenedor puede cambiar de tamaño sin que la ventana dispare "resize"
+  // (p. ej. al abrir/cerrar el panel retráctil, o si el layout se asienta
+  // después de que el mapa ya midió su tamaño inicial); sin esto el canvas
+  // queda con el tamaño viejo y el mapa se ve recortado.
+  useEffect(() => {
+    if (!map || !containerRef.current) return;
+    const el = containerRef.current;
+    const ro = new ResizeObserver(() => map.resize());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [map]);
+
   return { containerRef, map, lib };
 }
 

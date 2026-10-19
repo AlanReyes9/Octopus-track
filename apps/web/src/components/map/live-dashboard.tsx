@@ -144,7 +144,7 @@ export function LiveDashboard() {
   const moving = positions.filter((p) => isOnline(p.time) && (p.speedKmh ?? 0) > 3).length;
 
   return (
-    <div className="relative h-full">
+    <div className="relative h-full min-h-screen">
       <div ref={containerRef} className="absolute inset-0" />
 
       {/* Lista de unidades */}

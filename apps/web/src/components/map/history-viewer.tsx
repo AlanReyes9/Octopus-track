@@ -178,7 +178,7 @@ export function HistoryViewer({
   }, [playing, data]);
 
   return (
-    <div className="relative h-full">
+    <div className="relative h-full min-h-screen">
       <div ref={containerRef} className="absolute inset-0" />
       {selectedStop && <StopDetailCard selected={selectedStop} onClose={() => setSelectedStop(null)} />}
       <CollapsibleMapPanel>
