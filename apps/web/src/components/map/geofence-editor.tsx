@@ -160,7 +160,12 @@ export function GeofenceEditor({ canManage }: { canManage: boolean }) {
 
   return (
     <div className="relative h-full min-h-screen">
-      <div ref={containerRef} className="absolute inset-0" />
+      {/* MapLibre fuerza position:relative en su contenedor, así que el que
+          le pasamos (containerRef) no puede ser el que usa "absolute inset-0"
+          para ocupar todo el espacio; por eso va envuelto en otro div. */}
+      <div className="absolute inset-0">
+        <div ref={containerRef} className="h-full w-full" />
+      </div>
       <CollapsibleMapPanel contentClassName="flex flex-col gap-4 p-4">
         <h1 className="text-lg font-bold tracking-tight">Geocercas</h1>
 
