@@ -87,6 +87,10 @@ class FleetRepository(private val api: ApiClient, private val http: OkHttpClient
     suspend fun stops(deviceId: String, fromIso: String, toIso: String, minMinutes: Int = 2): StopsReportDto =
         api.get("/api/positions/stops", mapOf("deviceId" to deviceId, "from" to fromIso, "to" to toIso, "minMinutes" to minMinutes.toString()))
 
+    /** Desde cuándo lleva detenida una unidad (si lo está ahora mismo). */
+    suspend fun stoppedSince(deviceId: String): StoppedSinceDto =
+        api.get("/api/positions/stopped-since", mapOf("deviceId" to deviceId))
+
     fun clear() {
         _units.value = emptyList()
         _loaded.value = false

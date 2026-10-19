@@ -167,7 +167,7 @@ private fun HomeRoute(container: ManagerContainer, state: AuthState.LoggedIn, op
         SidebarHeader(state.tenants, user.tenantId, user.canManage, section, { section = it }, onSwitchTenant = { id -> scope.launch { runCatching { container.auth.switchTenant(id) } } })
         Box(Modifier.weight(1f).fillMaxWidth().navigationBarsPadding()) {
             when (section) {
-                Section.Live -> LiveScreen(units, alerts, geofences, mode, loaded, selectedId, { selectedId = it }, user.canManage, { historyUnit = it.id }, { commandsUnit = it.id })
+                Section.Live -> LiveScreen(units, alerts, geofences, mode, loaded, selectedId, { selectedId = it }, user.canManage, { historyUnit = it.id }, { commandsUnit = it.id }, container.fleet)
                 Section.History -> HistoryPickerScreen(units, loaded, user.canManage, { historyUnit = it.id })
                 Section.Geofences -> GeofencesScreen(
                     geofences, events, canManage = user.canManage,

@@ -105,6 +105,7 @@ fun LiveScreen(
     canManage: Boolean,
     onHistory: (FleetUnit) -> Unit,
     onCommands: (FleetUnit) -> Unit,
+    fleet: com.octopustrack.app.data.FleetRepository,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -112,6 +113,14 @@ fun LiveScreen(
     var query by remember { mutableStateOf("") }
     var panelOpen by remember { mutableStateOf(selectedId == null) }
     val selected = units.firstOrNull { it.id == selectedId }
+    val selectedStopped = selected != null && selected.hasPosition && (selected.speedKmh ?: 0.0) <= Formatting.MOVING_KMH
+    var stoppedSince by remember { mutableStateOf<com.octopustrack.app.data.StoppedSinceDto?>(null) }
+    LaunchedEffect(selected?.id, selectedStopped) {
+        stoppedSince = null
+        if (selected != null && selectedStopped) {
+            stoppedSince = runCatching { fleet.stoppedSince(selected.id) }.getOrNull()
+        }
+    }
     Box(modifier.fillMaxSize()) {
         FleetMap(units, geofences, selectedId, follow, { onSelect(it); if (it != null) follow = true }, onUserGesture = { follow = false }, Modifier.fillMaxSize())
         if (selected != null) {
@@ -123,6 +132,8 @@ fun LiveScreen(
                 onNavigate = { navigateTo(context, selected) },
                 onHistory = { onHistory(selected) },
                 onCommands = { onCommands(selected) },
+                stoppedSince = stoppedSince?.since,
+                stoppedSinceApprox = stoppedSince?.approximate ?: false,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp),
             )
         }
@@ -165,6 +176,8 @@ fun UnitSheet(
     onNavigate: () -> Unit,
     onHistory: () -> Unit,
     onCommands: () -> Unit,
+    stoppedSince: String? = null,
+    stoppedSinceApprox: Boolean = false,
     modifier: Modifier = Modifier,
     now: Instant = Instant.now(),
 ) {
@@ -196,6 +209,21 @@ fun UnitSheet(
                 style = MaterialTheme.typography.labelSmall.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (stoppedSince != null) {
+                val elapsedSeconds = java.time.Duration.between(Formatting.parse(stoppedSince) ?: now, now).seconds.coerceAtLeast(0)
+                androidx.compose.foundation.layout.Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.tertiaryContainer).padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    com.octopustrack.app.ui.brand.LIcon(Ic.Clock, tint = MaterialTheme.colorScheme.onTertiaryContainer, size = 14.dp)
+                    Spacer(Modifier.size(6.dp))
+                    Text(
+                        "Detenido hace ${Formatting.duration(elapsedSeconds.toInt())}${if (stoppedSinceApprox) " o más" else ""}",
+                        style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onTertiaryContainer,
+                    )
+                }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 BrandButton(if (follow) "Siguiendo" else "Seguir", onFollow, Modifier.weight(1f), kind = if (follow) ButtonKind.Primary else ButtonKind.Outline, icon = Ic.Crosshair, height = 42.dp)
                 BrandButton("Historial", onHistory, Modifier.weight(1f), kind = ButtonKind.Outline, icon = Ic.History, height = 42.dp)

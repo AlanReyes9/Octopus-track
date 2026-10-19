@@ -215,3 +215,42 @@ export async function deviceStops(
     totalStoppedSeconds: stops.reduce((sum, s) => sum + s.durationSeconds, 0),
   };
 }
+
+const STOPPED_SINCE_LOOKBACK_DAYS = 30;
+
+/**
+ * Desde cuándo lleva detenido un equipo (si lo está ahora mismo): el
+ * momento de la última posición con velocidad por encima del umbral, dentro
+ * de una ventana de 30 días. Si no se encuentra ninguna (lleva más de 30
+ * días detenido, o no hay datos), se usa la posición más antigua de la
+ * ventana como cota inferior aproximada. Si la última posición no está
+ * detenida, devuelve `null`.
+ */
+export async function deviceStoppedSince(
+  tenantId: string,
+  deviceId: string,
+  opts: { speedThresholdKmh?: number } = {},
+): Promise<{ since: string | null; approximate: boolean }> {
+  const speedThreshold = opts.speedThresholdKmh ?? DEFAULT_SPEED_THRESHOLD_KMH;
+  const rows = await getDb().execute<{
+    latest_speed: number | null;
+    last_moving_time: string | null;
+    earliest_time: string | null;
+  }>(sql`
+    WITH window AS (
+      SELECT time, speed_kmh FROM positions
+      WHERE tenant_id = ${tenantId} AND device_id = ${deviceId}
+        AND time >= now() - make_interval(days => ${STOPPED_SINCE_LOOKBACK_DAYS})
+    )
+    SELECT
+      (SELECT speed_kmh FROM window ORDER BY time DESC LIMIT 1) AS latest_speed,
+      (SELECT time FROM window WHERE COALESCE(speed_kmh, 0) > ${speedThreshold} ORDER BY time DESC LIMIT 1) AS last_moving_time,
+      (SELECT time FROM window ORDER BY time ASC LIMIT 1) AS earliest_time
+  `);
+
+  const row = rows[0];
+  if (!row || (row.latest_speed ?? 0) > speedThreshold) return { since: null, approximate: false };
+  if (row.last_moving_time) return { since: new Date(row.last_moving_time).toISOString(), approximate: false };
+  if (row.earliest_time) return { since: new Date(row.earliest_time).toISOString(), approximate: true };
+  return { since: null, approximate: false };
+}

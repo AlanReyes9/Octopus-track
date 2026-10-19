@@ -151,6 +151,12 @@ data class StopsReportDto(
     val totalStoppedSeconds: Int = 0,
 )
 
+@Serializable
+data class StoppedSinceDto(
+    val since: String? = null,
+    val approximate: Boolean = false,
+)
+
 // ---------------------------------------------------------------- comandos
 @Serializable
 data class CommandParamDef(

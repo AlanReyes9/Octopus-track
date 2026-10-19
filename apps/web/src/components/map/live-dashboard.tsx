@@ -15,6 +15,7 @@ import {
   Radio,
   Search,
   Send,
+  Timer,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -28,7 +29,7 @@ import { Input } from "@/components/ui/input";
 import { useLivePositions } from "@/hooks/use-live-positions";
 import { api } from "@/lib/fetcher";
 import { googleMapsDirections, googleMapsPlace } from "@/lib/maps-links";
-import { cn, formatDateTime, isOnline, timeAgo } from "@/lib/utils";
+import { cn, formatDateTime, formatDuration, isOnline, timeAgo } from "@/lib/utils";
 import type { LivePosition } from "@/server/positions";
 import { CollapsibleMapPanel } from "./collapsible-panel";
 import { syncGeofenceLayer, useMap, type GeofenceFeature } from "./use-map";
@@ -122,6 +123,27 @@ export function LiveDashboard() {
   }, [positions, map, lib]);
 
   const current = positions.find((p) => p.deviceId === selected) ?? null;
+  const currentStopped = !!current && (current.speedKmh ?? 0) <= 3;
+  const [stoppedSince, setStoppedSince] = useState<{ deviceId: string; since: string | null; approximate: boolean } | null>(null);
+
+  // Tiempo detenido: se consulta al seleccionar una unidad parada y cada vez
+  // que esta vuelve a detenerse; si arranca, se limpia de inmediato.
+  useEffect(() => {
+    if (!current || !currentStopped) {
+      setStoppedSince(null);
+      return;
+    }
+    let cancelled = false;
+    api<{ since: string | null; approximate: boolean }>(`/api/positions/stopped-since?deviceId=${current.deviceId}`)
+      .then((r) => {
+        if (!cancelled) setStoppedSince({ deviceId: current.deviceId, ...r });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current?.deviceId, currentStopped]);
 
   // Resaltado, estela y seguimiento del seleccionado.
   useEffect(() => {
@@ -276,6 +298,13 @@ export function LiveDashboard() {
               <p className="mt-2 text-center font-mono text-[11px] text-muted-foreground" title={formatDateTime(current.time)}>
                 {current.latitude.toFixed(7)}, {current.longitude.toFixed(7)}
               </p>
+              {currentStopped && stoppedSince?.deviceId === current.deviceId && stoppedSince.since && (
+                <div className="mt-2 flex items-center justify-center gap-1.5 rounded-lg bg-amber-50 py-1.5 text-xs font-medium text-amber-700">
+                  <Timer className="size-3.5" />
+                  Detenido hace {formatDuration((Date.now() - new Date(stoppedSince.since).getTime()) / 1000)}
+                  {stoppedSince.approximate ? " o más" : ""}
+                </div>
+              )}
 
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <Button size="sm" variant={follow ? "default" : "outline"} onClick={() => setFollow((f) => !f)}>
