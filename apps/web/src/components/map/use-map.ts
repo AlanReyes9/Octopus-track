@@ -44,6 +44,15 @@ export function useMap(opts: { center?: [number, number]; zoom?: number } = {}) 
         if (disposed) return;
         setLib(maplibre);
         setMap(instance);
+        // Safari a veces mide el contenedor antes de que termine de asentarse
+        // el layout (fuentes, barras del navegador, etc.) y el ResizeObserver
+        // no siempre dispara a tiempo ahí; se insiste con resize() varias
+        // veces en los primeros segundos como red de seguridad.
+        for (const delay of [50, 150, 300, 600, 1200, 2500]) {
+          setTimeout(() => {
+            if (!disposed) instance?.resize();
+          }, delay);
+        }
       });
     });
     return () => {
@@ -63,7 +72,17 @@ export function useMap(opts: { center?: [number, number]; zoom?: number } = {}) 
     const el = containerRef.current;
     const ro = new ResizeObserver(() => map.resize());
     ro.observe(el);
-    return () => ro.disconnect();
+    // Safari puede dejar el lienzo WebGL en blanco al volver de la caché de
+    // navegación (bfcache) o al cambiar de pestaña; re-medir al recuperar
+    // visibilidad es la forma recomendada de recuperarlo.
+    const onShow = () => map.resize();
+    window.addEventListener("pageshow", onShow);
+    document.addEventListener("visibilitychange", onShow);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("pageshow", onShow);
+      document.removeEventListener("visibilitychange", onShow);
+    };
   }, [map]);
 
   return { containerRef, map, lib };
