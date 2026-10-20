@@ -15,6 +15,15 @@ export const MAP_STYLE_URL =
 /** Santo Domingo, República Dominicana. */
 export const DEFAULT_CENTER: [number, number] = [-69.9312, 18.4861];
 
+/**
+ * Token gratuito de Mapbox para la capa de tráfico en tiempo real del
+ * "Mapa en vivo" (el resto del mapa sigue siendo OpenFreeMap). Se saca en
+ * https://account.mapbox.com/access-tokens/ (no pide tarjeta para el uso
+ * normal de esta app) y se configura como NEXT_PUBLIC_MAPBOX_TOKEN. Sin él,
+ * el botón de tráfico se deshabilita.
+ */
+export const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
+
 type MapLib = typeof import("maplibre-gl");
 
 /**
@@ -87,6 +96,50 @@ export function useMap(opts: { center?: [number, number]; zoom?: number } = {}) 
   }, [map]);
 
   return { containerRef, map, lib };
+}
+
+const TRAFFIC_SOURCE_ID = "traffic-flow";
+const TRAFFIC_LAYER_ID = "traffic-flow-layer";
+
+/**
+ * Agrega o quita la capa de tráfico en tiempo real (tiles vectoriales de
+ * Mapbox) sobre el mapa: líneas de calles coloreadas según congestión.
+ */
+export function setTrafficLayer(map: MapLibreMap, visible: boolean) {
+  if (!visible) {
+    if (map.getLayer(TRAFFIC_LAYER_ID)) map.removeLayer(TRAFFIC_LAYER_ID);
+    if (map.getSource(TRAFFIC_SOURCE_ID)) map.removeSource(TRAFFIC_SOURCE_ID);
+    return;
+  }
+  if (map.getSource(TRAFFIC_SOURCE_ID)) return;
+  map.addSource(TRAFFIC_SOURCE_ID, {
+    type: "vector",
+    tiles: [`https://api.mapbox.com/v4/mapbox.mapbox-traffic-v1/{z}/{x}/{y}.vector.pbf?access_token=${MAPBOX_TOKEN}`],
+    attribution: "© Mapbox",
+  });
+  map.addLayer({
+    id: TRAFFIC_LAYER_ID,
+    type: "line",
+    source: TRAFFIC_SOURCE_ID,
+    "source-layer": "traffic",
+    layout: { "line-join": "round", "line-cap": "round" },
+    paint: {
+      "line-width": 2.5,
+      "line-color": [
+        "match",
+        ["get", "congestion"],
+        "low",
+        "#4CAF50",
+        "moderate",
+        "#FFC107",
+        "heavy",
+        "#FF9800",
+        "severe",
+        "#F44336",
+        "#9E9E9E",
+      ],
+    },
+  });
 }
 
 export interface GeofenceFeature {

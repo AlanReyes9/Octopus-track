@@ -1,5 +1,7 @@
 "use client";
 
+import type { GeoJSONSource, Marker } from "maplibre-gl";
+import type { Feature } from "geojson";
 import {
   Battery,
   Bell,
@@ -31,20 +33,16 @@ import { googleMapsDirections, googleMapsPlace } from "@/lib/maps-links";
 import { cn, formatDateTime, formatDuration, isOnline, timeAgo } from "@/lib/utils";
 import type { LivePosition } from "@/server/positions";
 import { CollapsibleMapPanel } from "./collapsible-panel";
-import { GOOGLE_MAPS_API_KEY, useGoogleMap } from "./use-google-map";
-import type { GeofenceFeature } from "./use-map";
+import { MAPBOX_TOKEN, setTrafficLayer, syncGeofenceLayer, useMap, type GeofenceFeature } from "./use-map";
 import { createVehicleMarkerElement, setMarkerCourse } from "./vehicle-marker";
 
 const TRAIL_POINTS = 120;
 
 export function LiveDashboard() {
-  const { containerRef, map, markerLib } = useGoogleMap();
+  const { containerRef, map, lib } = useMap();
   const { positions, alerts, mode, loaded } = useLivePositions();
-  const markers = useRef(new Map<string, { marker: google.maps.marker.AdvancedMarkerElement; el: HTMLDivElement }>());
-  const trails = useRef(new Map<string, google.maps.LatLngLiteral[]>());
-  const trailPolyline = useRef<google.maps.Polyline | null>(null);
-  const geofencePolygons = useRef<google.maps.Polygon[]>([]);
-  const trafficLayer = useRef<google.maps.TrafficLayer | null>(null);
+  const markers = useRef(new Map<string, { marker: Marker; el: HTMLDivElement }>());
+  const trails = useRef(new Map<string, [number, number][]>());
   const fitted = useRef(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [follow, setFollow] = useState(true);
@@ -53,16 +51,11 @@ export function LiveDashboard() {
   const [showTraffic, setShowTraffic] = useState(false);
   const [, setTick] = useState(0);
 
-  // Capa de tráfico en tiempo real de Google: se agrega o se quita sobre el
-  // mismo mapa al activar el interruptor.
+  // Capa de tráfico en tiempo real (TomTom, gratis): se agrega o se quita
+  // sobre el mismo mapa al activar el interruptor.
   useEffect(() => {
     if (!map) return;
-    if (showTraffic) {
-      if (!trafficLayer.current) trafficLayer.current = new google.maps.TrafficLayer();
-      trafficLayer.current.setMap(map);
-    } else {
-      trafficLayer.current?.setMap(null);
-    }
+    setTrafficLayer(map, showTraffic && !!MAPBOX_TOKEN);
   }, [map, showTraffic]);
 
   useEffect(() => {
@@ -73,58 +66,44 @@ export function LiveDashboard() {
     return () => clearInterval(t);
   }, []);
 
-  // Geocercas de contexto + estela del seleccionado + seguimiento manual.
+  // Geocercas de contexto + capa de estela del seleccionado.
   useEffect(() => {
     if (!map) return;
     api<GeofenceFeature[]>("/api/geofences")
-      .then((geofences) => {
-        geofencePolygons.current.forEach((p) => p.setMap(null));
-        geofencePolygons.current = geofences.map(
-          (g) =>
-            new google.maps.Polygon({
-              map,
-              paths: g.geometry.coordinates[0]?.map(([lng, lat]) => ({ lat, lng })) ?? [],
-              strokeColor: g.color,
-              strokeWeight: 2,
-              fillColor: g.color,
-              fillOpacity: 0.15,
-            }),
-        );
-      })
+      .then((g) => syncGeofenceLayer(map, g))
       .catch(() => {});
-    trailPolyline.current = new google.maps.Polyline({
-      map,
-      path: [],
-      strokeColor: "#7c3aed",
-      strokeWeight: 4,
-      strokeOpacity: 0.75,
+    map.addSource("trail", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    map.addLayer({
+      id: "trail",
+      type: "line",
+      source: "trail",
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: { "line-color": "#7c3aed", "line-width": 4, "line-opacity": 0.75 },
     });
     // Si el usuario mueve el mapa manualmente, se desactiva el seguimiento.
-    const listener = map.addListener("dragstart", () => setFollow(false));
+    const stop = () => setFollow(false);
+    map.on("dragstart", stop);
     return () => {
-      google.maps.event.removeListener(listener);
-      trailPolyline.current?.setMap(null);
-      geofencePolygons.current.forEach((p) => p.setMap(null));
+      map.off("dragstart", stop);
     };
   }, [map]);
 
   // Marcadores y estelas.
   useEffect(() => {
-    if (!map || !markerLib) return;
+    if (!map || !lib) return;
     const seen = new Set<string>();
     for (const p of positions) {
       seen.add(p.deviceId);
-      const point = { lat: p.latitude, lng: p.longitude };
       const trail = trails.current.get(p.deviceId) ?? [];
       const last = trail.at(-1);
-      if (!last || last.lat !== point.lat || last.lng !== point.lng) {
-        trail.push(point);
+      if (!last || last[0] !== p.longitude || last[1] !== p.latitude) {
+        trail.push([p.longitude, p.latitude]);
         if (trail.length > TRAIL_POINTS) trail.shift();
         trails.current.set(p.deviceId, trail);
       }
       const existing = markers.current.get(p.deviceId);
       if (existing) {
-        existing.marker.position = point;
+        existing.marker.setLngLat([p.longitude, p.latitude]);
         setMarkerCourse(existing.el, p.course);
       } else {
         const el = createVehicleMarkerElement(p.color, p.icon);
@@ -134,23 +113,23 @@ export function LiveDashboard() {
           setSelected(p.deviceId);
           setFollow(true);
         });
-        const marker = new markerLib.AdvancedMarkerElement({ map, position: point, content: el });
+        const marker = new lib.Marker({ element: el }).setLngLat([p.longitude, p.latitude]).addTo(map);
         markers.current.set(p.deviceId, { marker, el });
       }
     }
     for (const [id, m] of markers.current) {
       if (!seen.has(id)) {
-        m.marker.map = null;
+        m.marker.remove();
         markers.current.delete(id);
       }
     }
     if (!fitted.current && positions.length) {
       fitted.current = true;
-      const bounds = new google.maps.LatLngBounds();
-      positions.forEach((p) => bounds.extend({ lat: p.latitude, lng: p.longitude }));
-      map.fitBounds(bounds, 80);
+      const bounds = new lib.LngLatBounds();
+      positions.forEach((p) => bounds.extend([p.longitude, p.latitude]));
+      map.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 0 });
     }
-  }, [positions, map, markerLib]);
+  }, [positions, map, lib]);
 
   const current = positions.find((p) => p.deviceId === selected) ?? null;
   const currentStopped = !!current && (current.speedKmh ?? 0) <= 3;
@@ -178,12 +157,12 @@ export function LiveDashboard() {
   // Resaltado, estela y seguimiento del seleccionado.
   useEffect(() => {
     if (!map) return;
-    for (const [id, m] of markers.current) m.marker.zIndex = id === selected ? 10 : null;
+    for (const [id, m] of markers.current) m.el.style.zIndex = id === selected ? "10" : "";
     const coords = selected ? trails.current.get(selected) ?? [] : [];
-    trailPolyline.current?.setPath(coords);
+    const data: Feature = { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: coords } };
+    (map.getSource("trail") as GeoJSONSource | undefined)?.setData(data);
     if (current && follow) {
-      map.panTo({ lat: current.latitude, lng: current.longitude });
-      if (map.getZoom()! < 15) map.setZoom(15);
+      map.easeTo({ center: [current.longitude, current.latitude], zoom: Math.max(map.getZoom(), 15), duration: 800 });
     }
   }, [map, selected, follow, current?.latitude, current?.longitude]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -197,21 +176,18 @@ export function LiveDashboard() {
 
   return (
     <div className="relative h-full min-h-screen">
+      {/* MapLibre fuerza position:relative en su contenedor, así que el que
+          le pasamos (containerRef) no puede ser el que usa "absolute inset-0"
+          para ocupar todo el espacio; por eso va envuelto en otro div. */}
       <div className="absolute inset-0">
         <div ref={containerRef} className="h-full w-full" />
       </div>
 
-      {!GOOGLE_MAPS_API_KEY && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-white p-6 text-center text-sm text-muted-foreground">
-          Falta configurar NEXT_PUBLIC_GOOGLE_MAPS_API_KEY para mostrar el mapa.
-        </div>
-      )}
-
       <button
         type="button"
         onClick={() => setShowTraffic((v) => !v)}
-        disabled={!GOOGLE_MAPS_API_KEY}
-        title={GOOGLE_MAPS_API_KEY ? "Mostrar u ocultar el tráfico en tiempo real" : "Falta configurar NEXT_PUBLIC_GOOGLE_MAPS_API_KEY"}
+        disabled={!MAPBOX_TOKEN}
+        title={MAPBOX_TOKEN ? "Mostrar u ocultar el tráfico en tiempo real" : "Falta configurar NEXT_PUBLIC_MAPBOX_TOKEN"}
         className={cn(
           "absolute top-28 right-3 z-10 flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium shadow-lg transition disabled:cursor-not-allowed disabled:opacity-50",
           showTraffic ? "bg-violet-600 text-white" : "bg-white text-foreground",
