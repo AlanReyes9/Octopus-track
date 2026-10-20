@@ -15,14 +15,6 @@ export const MAP_STYLE_URL =
 /** Santo Domingo, República Dominicana. */
 export const DEFAULT_CENTER: [number, number] = [-69.9312, 18.4861];
 
-/**
- * Clave gratuita de TomTom (sin tarjeta de crédito) para la capa de tráfico
- * en tiempo real del "Mapa en vivo". Se saca en
- * https://developer.tomtom.com/ (plan gratis, no pide pago) y se configura
- * como NEXT_PUBLIC_TOMTOM_API_KEY. Sin ella, el botón de tráfico se deshabilita.
- */
-export const TOMTOM_API_KEY = process.env.NEXT_PUBLIC_TOMTOM_API_KEY ?? "";
-
 type MapLib = typeof import("maplibre-gl");
 
 /**
@@ -95,26 +87,6 @@ export function useMap(opts: { center?: [number, number]; zoom?: number } = {}) 
   }, [map]);
 
   return { containerRef, map, lib };
-}
-
-const TRAFFIC_SOURCE_ID = "traffic-flow";
-const TRAFFIC_LAYER_ID = "traffic-flow-layer";
-
-/** Agrega o quita la capa de tráfico en tiempo real (flujo de TomTom) sobre el mapa. */
-export function setTrafficLayer(map: MapLibreMap, visible: boolean) {
-  if (!visible) {
-    if (map.getLayer(TRAFFIC_LAYER_ID)) map.removeLayer(TRAFFIC_LAYER_ID);
-    if (map.getSource(TRAFFIC_SOURCE_ID)) map.removeSource(TRAFFIC_SOURCE_ID);
-    return;
-  }
-  if (map.getSource(TRAFFIC_SOURCE_ID)) return;
-  map.addSource(TRAFFIC_SOURCE_ID, {
-    type: "raster",
-    tiles: [`https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=${TOMTOM_API_KEY}`],
-    tileSize: 256,
-    attribution: "© TomTom",
-  });
-  map.addLayer({ id: TRAFFIC_LAYER_ID, type: "raster", source: TRAFFIC_SOURCE_ID, paint: { "raster-opacity": 0.85 } });
 }
 
 export interface GeofenceFeature {
