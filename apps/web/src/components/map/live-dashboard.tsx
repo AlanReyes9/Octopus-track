@@ -16,6 +16,7 @@ import {
   Search,
   Send,
   Timer,
+  TrafficCone,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -32,7 +33,7 @@ import { googleMapsDirections, googleMapsPlace } from "@/lib/maps-links";
 import { cn, formatDateTime, formatDuration, isOnline, timeAgo } from "@/lib/utils";
 import type { LivePosition } from "@/server/positions";
 import { CollapsibleMapPanel } from "./collapsible-panel";
-import { syncGeofenceLayer, useMap, type GeofenceFeature } from "./use-map";
+import { setTrafficLayer, syncGeofenceLayer, TOMTOM_API_KEY, useMap, type GeofenceFeature } from "./use-map";
 import { createVehicleMarkerElement, setMarkerCourse } from "./vehicle-marker";
 
 const TRAIL_POINTS = 120;
@@ -47,7 +48,15 @@ export function LiveDashboard() {
   const [follow, setFollow] = useState(true);
   const [query, setQuery] = useState("");
   const [commandsOpen, setCommandsOpen] = useState(false);
+  const [showTraffic, setShowTraffic] = useState(false);
   const [, setTick] = useState(0);
+
+  // Capa de tráfico en tiempo real (TomTom, gratis): se agrega o se quita
+  // sobre el mismo mapa al activar el interruptor.
+  useEffect(() => {
+    if (!map) return;
+    setTrafficLayer(map, showTraffic && !!TOMTOM_API_KEY);
+  }, [map, showTraffic]);
 
   useEffect(() => {
     const t = setInterval(() => setTick((n) => n + 1), 15_000);
@@ -173,6 +182,20 @@ export function LiveDashboard() {
       <div className="absolute inset-0">
         <div ref={containerRef} className="h-full w-full" />
       </div>
+
+      <button
+        type="button"
+        onClick={() => setShowTraffic((v) => !v)}
+        disabled={!TOMTOM_API_KEY}
+        title={TOMTOM_API_KEY ? "Mostrar u ocultar el tráfico en tiempo real" : "Falta configurar NEXT_PUBLIC_TOMTOM_API_KEY"}
+        className={cn(
+          "absolute top-28 right-3 z-10 flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium shadow-lg transition disabled:cursor-not-allowed disabled:opacity-50",
+          showTraffic ? "bg-violet-600 text-white" : "bg-white text-foreground",
+        )}
+      >
+        <TrafficCone className="size-3.5" />
+        Tráfico
+      </button>
 
       {/* Lista de unidades */}
       <CollapsibleMapPanel contentClassName="flex flex-1 flex-col">
