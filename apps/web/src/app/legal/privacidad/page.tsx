@@ -8,15 +8,18 @@ export default function PrivacyPage() {
     <>
       <h1>Aviso de privacidad</h1>
       <p className="text-muted-foreground">
-        Este aviso explica cómo se tratan los datos personales en Octopus Track, conforme a la legislación de protección
-        de datos aplicable (en México, la Ley Federal de Protección de Datos Personales en Posesión de los Particulares;
-        en otras jurisdicciones, normas equivalentes como el RGPD).
+        Este aviso explica cómo se tratan los datos personales en Octopus Track: el panel web, la app Android{" "}
+        <strong>Manager</strong> (para administrar la flota) y la app Android <strong>Cliente</strong> (para compartir la
+        ubicación de un teléfono con una empresa), conforme a la legislación de protección de datos aplicable (en
+        México, la Ley Federal de Protección de Datos Personales en Posesión de los Particulares; en otras
+        jurisdicciones, normas equivalentes como el RGPD).
       </p>
 
       <h2>1. Responsable</h2>
       <p>
-        <strong>{LEGAL.company}</strong>, con domicilio en {LEGAL.address}, es responsable del tratamiento de los datos
-        de las cuentas de la plataforma. Contacto de privacidad: <a href={`mailto:${LEGAL.email}`}>{LEGAL.email}</a>.
+        <strong>{LEGAL.company}</strong>{LEGAL.address ? `, con domicilio en ${LEGAL.address},` : ""} es responsable del
+        tratamiento de los datos de las cuentas de la plataforma. Contacto de privacidad:{" "}
+        <a href={`mailto:${LEGAL.email}`}>{LEGAL.email}</a>.
       </p>
       <p>
         Respecto a la ubicación de vehículos y teléfonos que cada empresa cliente registra, la empresa cliente es la
@@ -28,7 +31,12 @@ export default function PrivacyPage() {
       <ul>
         <li><strong>Cuenta:</strong> nombre, correo electrónico, contraseña (almacenada solo como hash bcrypt), rol y empresa.</li>
         <li><strong>Equipos GPS:</strong> identificador (IMEI), posición geográfica, velocidad, rumbo, estado de encendido y fecha/hora.</li>
-        <li><strong>Teléfonos vinculados:</strong> posición geográfica mientras la persona comparte su ubicación, nombre que indica al aceptar, fecha de aceptación o revocación y tipo de navegador.</li>
+        <li>
+          <strong>Teléfonos vinculados:</strong> posición geográfica, velocidad y rumbo mientras la persona comparte su
+          ubicación, nivel de batería del teléfono, nombre que indica al aceptar, y fecha de aceptación o revocación.
+          Si comparte desde el navegador, también el tipo de navegador; si usa la app Android «Cliente», un
+          identificador técnico del equipo vinculado.
+        </li>
         <li><strong>Notificaciones:</strong> si las activas, la dirección de suscripción push que genera tu navegador (no incluye datos personales) para enviarte alertas.</li>
         <li><strong>Técnicos:</strong> registros de acceso y errores necesarios para la seguridad del servicio.</li>
       </ul>
@@ -43,13 +51,14 @@ export default function PrivacyPage() {
 
       <h2>4. Consentimiento para localizar teléfonos</h2>
       <p>
-        Un teléfono solo se localiza si la persona que lo porta abre el enlace de vinculación, lee qué empresa verá su
-        ubicación y <strong>acepta expresamente</strong>. Puede dejar de compartir en cualquier momento con el botón
-        &laquo;Dejar de compartir&raquo;, que revoca el consentimiento de inmediato. El sistema del teléfono muestra
-        siempre cuándo se está usando la ubicación. Si además configuras una app de rastreo en segundo plano con tu
-        URL personal, esa app (de un tercero, con su propia política) envía la ubicación aunque bloquees el teléfono,
-        mostrando el aviso del sistema; al revocar el consentimiento la URL deja de aceptar datos. Queda prohibido usar
-        la plataforma para localizar a personas sin su conocimiento.
+        Un teléfono solo se localiza si la persona que lo porta abre el enlace o escanea el código QR de vinculación
+        (desde el navegador o desde la app Android «Cliente»), lee qué empresa verá su ubicación y{" "}
+        <strong>acepta expresamente</strong> en la pantalla de consentimiento. Puede dejar de compartir en cualquier
+        momento con el botón &laquo;Dejar de compartir&raquo;, que revoca el consentimiento de inmediato. El sistema
+        del teléfono muestra siempre, con una notificación permanente, cuándo se está usando la ubicación en segundo
+        plano. La app «Cliente» es de Octopus Track y se rige por este mismo aviso; no envía datos antes de que la
+        persona acepte, y puede pausar el envío desde esa misma notificación. Queda prohibido usar la plataforma para
+        localizar a personas sin su conocimiento.
       </p>
 
       <h2>5. Conservación</h2>
