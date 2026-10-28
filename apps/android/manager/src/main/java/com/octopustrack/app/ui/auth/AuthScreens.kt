@@ -73,7 +73,7 @@ fun WelcomeScreen(onLogin: () -> Unit, modifier: Modifier = Modifier) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 BrandButton("Iniciar sesión", onLogin, Modifier.fillMaxWidth(), kind = ButtonKind.OnDark, icon = Ic.LogIn)
                 Text(
-                    "¿Quieres compartir la ubicación de un teléfono con tu empresa? Instala la app aparte \"Octopus Track\".",
+                    "¿Quieres compartir la ubicación de un teléfono con tu empresa? Instala la app aparte \"Cliente\".",
                     style = MaterialTheme.typography.bodySmall, color = Violet.V200, textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 )

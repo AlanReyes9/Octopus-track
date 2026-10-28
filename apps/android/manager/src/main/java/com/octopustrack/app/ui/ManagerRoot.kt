@@ -49,7 +49,7 @@ import kotlinx.coroutines.launch
 
 /** Raíz de la app Manager: inicio de sesión y, una vez dentro, el panel (mapa, historial,
  *  geocercas, comandos, cuenta). Compartir la ubicación de un teléfono se hace desde la
- *  app aparte "Octopus Track", no desde aquí. */
+ *  app aparte "Cliente", no desde aquí. */
 @Composable
 fun ManagerRoot(container: ManagerContainer) {
     val auth by container.session.auth.collectAsState()
