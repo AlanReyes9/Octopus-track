@@ -1,0 +1,45 @@
+# Despliegue de apps/ingest (servicio TCP/HTTP de ingesta GPS) en Fly.io.
+# Construir y desplegar desde la RAÍZ del repo:
+#   flyctl deploy -c fly.ingest.toml --dockerfile apps/ingest/Dockerfile
+app = "octopus-track-ingest"
+primary_region = "iad"
+
+[build]
+
+[env]
+  INGEST_HTTP_PORT = "4000"
+  INGEST_TCP_PORT = "5023"
+
+[[services]]
+  internal_port = 4000
+  protocol = "tcp"
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [[services.tcp_checks]]
+    interval = "15s"
+    timeout = "4s"
+    grace_period = "10s"
+
+[[services]]
+  internal_port = 5023
+  protocol = "tcp"
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 5023
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1

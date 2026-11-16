@@ -99,10 +99,12 @@ if (process.env.REDIS_URL) {
   });
 }
 
-await http.listen({ port: httpPort, host: "0.0.0.0" });
-tcp.server.listen(tcpPort, "0.0.0.0", () => console.log(`[tcp] autodetección de protocolo en :${tcpPort}`));
+// "::" escucha en IPv4 e IPv6 a la vez (necesario para la red privada 6PN de Fly.io,
+// que solo alcanza a la app por IPv6; "0.0.0.0" sería IPv4 únicamente).
+await http.listen({ port: httpPort, host: "::" });
+tcp.server.listen(tcpPort, "::", () => console.log(`[tcp] autodetección de protocolo en :${tcpPort}`));
 for (const d of dedicated) {
-  d.srv.server.listen(d.port, "0.0.0.0", () => console.log(`[tcp] ${d.protocol} en :${d.port}`));
+  d.srv.server.listen(d.port, "::", () => console.log(`[tcp] ${d.protocol} en :${d.port}`));
 }
 
 async function shutdown() {

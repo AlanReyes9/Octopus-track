@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/main.ts",
-    "build": "tsup src/main.ts src/simulator.ts --format esm --target node20 --clean --noExternal @octopus/db --noExternal @octopus/telemetry --noExternal @octopus/ingest-core",
+    "build": "tsup",
     "start": "node dist/main.js",
     "simulate": "tsx src/simulator.ts",
     "typecheck": "tsc -p ."
