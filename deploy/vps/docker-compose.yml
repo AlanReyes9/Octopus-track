@@ -1,0 +1,107 @@
+# Octopus Track — pila completa autoalojada (VPS).
+# Uso: desde la raíz del repo → docker compose -f deploy/vps/docker-compose.yml --env-file deploy/vps/.env up -d
+# (deploy/vps/setup.sh hace esto por ti, incluida la migración inicial).
+services:
+  db:
+    image: timescale/timescaledb-ha:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: octopus
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: octopus
+    volumes:
+      - pgdata:/home/postgres/pgdata/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U octopus"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+
+  migrate:
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+      target: migrator
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://octopus:${DB_PASSWORD}@db:5432/octopus
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  web:
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://octopus:${DB_PASSWORD}@db:5432/octopus
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  ingest:
+    build:
+      context: ../..
+      dockerfile: apps/ingest/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://octopus:${DB_PASSWORD}@db:5432/octopus
+      REDIS_URL: redis://redis:6379
+      INGEST_HTTP_PORT: "4000"
+      INGEST_TCP_PORT: "5023"
+    ports:
+      # TCP crudo de los GPS: debe quedar expuesto directo (sin proxy HTTP).
+      - "5023:5023"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  realtime:
+    build:
+      context: ../..
+      dockerfile: apps/realtime/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379
+      REALTIME_PORT: "4001"
+    depends_on:
+      redis:
+        condition: service_started
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+      - realtime
+
+volumes:
+  pgdata:
+  redisdata:
+  caddy_data:
+  caddy_config:
